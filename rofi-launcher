@@ -1,0 +1,49 @@
+#!/usr/bin/env sh
+#################
+# L A U N C H E R
+#################
+# -> Rofi Power
+# -> Rofi Drun
+# -> Rofi Drun bar
+# -> i3-dmenu
+# -> Rofi Calc
+# -> Rofi nord
+
+# Import the colors
+. "${HOME}/.cache/wal/colors.sh"
+
+# :: Functions
+rofi_power(){
+ rofi -modi "Powermenu:~/.config/rofi/scripts/powermenu.sh" -show Powermenu -icon-theme "BeautyLine" -show-icons -config "${HOME}/.cache/wal/colors-rofi-dark.rasi" -theme-str 'inputbar {enabled:false;} scrollbar {handle-width:0;} window {height: 22%; width: 30%;}'
+}
+
+rofi_browse(){
+    rofi -modi run,drun,windowcd,filebrowser -show drun -sidebar-mode -window-thumbnail -icon-theme "BeautyLine" -show-icons -config "${HOME}/.cache/wal/colors-rofi-dark.rasi" -theme-str 'scrollbar {handle-width:0;} window {height: 80%; width: 50%;}'
+}
+rofi_drun_bar(){
+    dmenu_run -b -nb "$color0" -nf "$color11" -sb "$color1" -sf "$color0"
+}
+i3dmenu(){
+    i3-dmenu-desktop --dmenu="dmenu -i -nb '$color0' -nf '$color11' -sb '$color1' -sf '$color0'"
+}
+rofi_calc(){
+    rofi n -show calc -modi calc -no-show-match -no-sort -no-persist-history -no-unicode -calc-command "echo -n '{result}' | xclip -selection clipboard && dunstify -a Calculator -t 2500 'Result Copied: {result}'" -config "${HOME}/.cache/wal/colors-rofi-dark.rasi" -theme-str 'window {height: 22%; width: 20%;}'
+}
+rofinord(){
+    rofi-nordvpn
+#-show drun -window-thumbnail -icon-theme "BeautyLine" -show-icons -config "${HOME}/.cache/wal/colors-rofi-dark.rasi" -theme-str 'scrollbar {handle-width:0;} window {height: 100%; width: 40%;}'
+}
+
+# :: Main
+
+while getopts ":pdbmcn" option; do
+    case $option in
+        p) rofi_power;;
+        d) rofi_browse;;
+        b) rofi_drun_bar;;
+        m) i3dmenu;;
+        c) rofi_calc;;
+        n) rofinord;;
+        \?) exit 1;;
+    esac
+done

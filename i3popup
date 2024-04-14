@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+#----------------
+#  i3-system-scripts
+#----------------
+# -> afetch
+# -> bunnyfetch
+# -> calendar
+
+# :: Functions
+
+afetch(){
+        i3-scratchpad -d440x140 -atr -p-30,30 -m r -wtu afetch
+}
+
+
+bunnyfetch(){
+        i3-scratchpad -d250x190 -atr -p-30,30 -m r -wtu ~/./kawaiifetch
+}
+
+cal(){
+        i3-scratchpad -d200x200 -abr -p0,-32 -wtu cal
+}
+
+batt(){
+        i3-scratchpad -d500x410 -o clear -abr -p-15,-15 -m r -wtu upower -i `upower -e | grep 'bat'`
+}
+
+# :: Main
+
+while getopts ":abcp" option; do
+    case $option in
+        a) afetch;;
+        b) bunnyfetch;;
+        c) cal;;
+        p) batt;;
+        \?) exit 1;;
+    esac
+done

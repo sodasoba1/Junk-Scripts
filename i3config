@@ -1,0 +1,660 @@
+###################################
+#  ╻┏━┓   ┏━╸┏━┓┏┓╻┏━╸╻┏━╸
+#  ┃╺━┫   ┃  ┃ ┃┃┗┫┣╸ ┃┃╺┓
+#  ╹┗━┛   ┗━╸┗━┛╹ ╹╹  ╹┗━┛
+#############################
+
+set $mod Mod4
+set $script ~/.config/i3/scripts/
+set $ctl ~/.config/i3/ctl
+set $pop ~/.config/i3/pop
+
+#######################
+#  ┏━╸┏━┓┏┓╻╺┳╸
+#  ┣╸ ┃ ┃┃┗┫ ┃
+#  ╹  ┗━┛╹ ╹ ╹
+#################
+
+#font pango:RobotoMono Nerd Font Mono 8
+#font pango: TerminessTTF Nerd Font 11
+#font pango: Font Awesome Pro 6, Symbols Nerd Font 9
+font pango: MesloLGS NF 10
+#font pango: Hurmit Nerd Font Mono 9
+#font pango: FantasqueSansMono Nerd Font 10
+#font pango: iosevka 9
+#font pango: Fira Code 9
+#font pango: DejaVu Sans Mono 8
+
+###########################################
+#  ┏┓╻┏━┓╺┳╸╻┏━╸╻┏━╸┏━┓╺┳╸╻┏━┓┏┓╻
+#  ┃┗┫┃ ┃ ┃ ┃┣╸ ┃┃  ┣━┫ ┃ ┃┃ ┃┃┗┫
+#  ╹ ╹┗━┛ ╹ ╹╹  ╹┗━╸╹ ╹ ╹ ╹┗━┛╹ ╹
+#####################################
+
+bindsym Ctrl+space              exec --no-startup-id dunstctl close
+bindsym Ctrl+Shift+space        exec --no-startup-id dunstctl close-all
+bindsym Ctrl+grave              exec --no-startup-id dunstctl history-pop
+bindsym Ctrl+Shift+period       exec --no-startup-id dunstctl context
+bindsym Ctrl+$mod+d             exec $ctl -n
+bindsym Caps_Lock               exec $ctl -c
+bindsym XF86TouchpadOff         exec $ctl -t
+bindsym XF86TouchpadOn          exec $ctl -p
+
+######################################
+#  ┏━┓╻ ╻╺┳╸┏━┓┏━┓╺┳╸┏━┓┏━┓╺┳╸
+#  ┣━┫┃ ┃ ┃ ┃ ┃┗━┓ ┃ ┣━┫┣┳┛ ┃
+#  ╹ ╹┗━┛ ╹ ┗━┛┗━┛ ╹ ╹ ╹╹┗╸ ╹
+################################
+
+#exec --no-startup-id dex --autostart --environment i3
+#exec --no-startup-id xss-lock --transfer-sleep-lock -- i3lock --nofork
+exec --no-startup-id nm-applet
+#exec --no-startup-id batify -l 25 -c 15 -f 98 -i 60
+exec --no-startup-id pkill picom; picom --no-use-damage
+#exec_always --no-startup-id picom -b -c ~/.config/picom/picom.conf
+#exec --no-startup id picom -CGb
+exec --no-startup-id unclutter --start-hidden
+#exec ~/.config/i3/scripts/ram.sh &
+#exec sleep 2 && $HOME/.config/dunst/scripts/updates.sh &
+#exec --no-startup-id sleep 3 &amp;&amp; xfce4-power-manager
+#exec_always batsignal -b -W -C -D -F -a Battery -I
+## powersv ##
+exec --no-startup-id xset s 480 dpms 600 600 600
+#exec powerprofilesctl set power-saver &
+exec --no-startup-id ~/.config/bato/bato-daemon.sh
+#exec_always --no-startup-id $HOME/.config/polybar/launch.sh
+#exec_always --no-startup-id oneko -tora -fg black -bg goldenrod
+
+##########################
+#  ┏━┓┏━┓╻ ╻┏┓╻╺┳┓
+#  ┗━┓┃ ┃┃ ┃┃┗┫ ┃┃
+#  ┗━┛┗━┛┗━┛╹ ╹╺┻┛
+####################
+
+# Use pactl to adjust volume in PulseAudio.
+set $refresh_i3status killall -SIGUSR1 i3status
+#bindsym XF86AudioRaiseVolume exec --no-startup-id "bash ~/.config/i3/scripts/volume.sh up"
+#bindsym XF86AudioLowerVolume exec --no-startup-id "bash ~/.config/i3/scripts/volume.sh down"
+#bindsym XF86AudioMute exec --no-startup-id "bash ~/.config/i3/scripts/volume.sh mute"
+
+bindsym XF86AudioRaiseVolume exec --no-startup-id $ctl -u
+bindsym XF86AudioLowerVolume exec --no-startup-id $ctl -d
+bindsym XF86AudioMute exec --no-startup-id $ctl -m
+
+#bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ +10% && $refresh_i3status
+#bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ -10% && $refresh_i3status
+#bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ toggle && $refresh_i3status
+#mod + shift + Audiomute = F16
+bindsym $mod+Shift+m exec --no-startup-id pactl set-source-mute @DEFAULT_SOURCE@ toggle && $refresh_i3status
+
+bindsym $mod+F7 exec pavucontrol;exec --no-startup-id dunstify -a 'System' -i '/usr/share/icons/dunst/system/info.svg' 'Pavucontrol' -t 800
+
+#######################################
+#  ┏┓ ┏━┓╻┏━╸╻ ╻╺┳╸┏┓╻┏━╸┏━┓┏━┓
+#  ┣┻┓┣┳┛┃┃╺┓┣━┫ ┃ ┃┗┫┣╸ ┗━┓┗━┓
+#  ┗━┛╹┗╸╹┗━┛╹ ╹ ╹ ╹ ╹┗━╸┗━┛┗━┛
+#################################
+
+#bindsym XF86MonBrightnessUp exec xbacklight -inc 20 # increase screen brightness
+#bindsym XF86MonBrightnessDown exec xbacklight -dec 20 # decrease screen brightness
+
+#bindsym XF86MonBrightnessUp exec --no-startup-id "bash ~/.config/i3/scripts/bright.sh up"
+#bindsym XF86MonBrightnessDown exec --no-startup-id "bash ~/.config/i3/scripts/bright.sh down"
+
+bindsym XF86MonBrightnessUp exec --no-startup-id  $ctl -b
+bindsym XF86MonBrightnessDown exec --no-startup-id  $ctl -v
+
+#########################################
+#  ┏━┓┏━┓┏━┓   ╻  ┏━┓╻ ╻┏┓╻┏━╸╻ ╻
+#  ┣━┫┣━┛┣━┛   ┃  ┣━┫┃ ┃┃┗┫┃  ┣━┫
+#  ╹ ╹╹  ╹     ┗━╸╹ ╹┗━┛╹ ╹┗━╸╹ ╹
+###################################
+
+#bindsym XF86TouchpadToggle exec $script/toggletouchpad.sh;$ctl -p -l # toggle touchpad
+
+#Terminal
+bindsym $mod+Return exec urxvt;exec --no-startup-id dunstify -a 'URxvt' -i '/usr/share/icons/dunst/system/rectangle-terminal.svg' 'Terminal' -t 800
+#bindsym $mod+Return exec i3-sensible-terminal
+
+#System:WebBrowser
+bindsym $mod+w exec chromium;exec --no-startup-id dunstify -a 'Web' -i '/usr/share/icons/dunst/system/chrome.svg' 'Chrome' -t 800
+#bindsym $mod+w exec firefox
+
+#System:Filebrowser
+bindsym $mod+g exec nemo;exec --no-startup-id dunstify -a 'System' -i '/usr/share/icons/dunst/system/filemanager.svg' 'Nemo' -t 800
+#bindsym $mod+e exec PCManFM
+
+#System:TLP:Battery Management
+bindsym $mod+Shift+p exec --no-startup-id tlpui;exec --no-startup-id dunstify -a 'Python' -i '/usr/share/icons/dunst/system/battery_saver.svg' 'TLP' -t 800
+
+#i3:Rofi:Keybinds Menu
+bindsym $mod+F1 exec --no-startup-id ~/rofi-i3-keybinds/rofi-i3-keybinds.sh;exec --no-startup-id dunstify -a 'Rofi' -i '/usr/share/icons/dunst/system/keyboard.svg' 'Keybinds' -t 800
+#bindsym F1 exec --no-startup-id echo "I don't need help" > /dev/null
+
+#Htop:Terminal:Taskmanager
+bindsym $mod+F2 exec --no-startup-id urxvt -e htop;exec --no-startup-id dunstify -a 'Urxvt' -i '/usr/share/icons/dunst/system/sysmon.svg' 'Htop' -t 800
+
+#Ranger:Terminal:FileBrowser
+bindsym $mod+F3 exec --no-startup-id urxvt -e ranger;exec --no-startup-id dunstify -a 'Urxvt' -i '/usr/share/icons/dunst/system/terminal.svg' 'Ranger' -t 800
+
+#Xsensors
+bindsym $mod+F4 exec --no-startup-id xsensors;exec --no-startup-id dunstify -a 'System' -i '/usr/share/icons/dunst/system/sysmon.svg' 'Sensors' -t 800
+
+#Rofi-Calculator
+bindsym $mod+F5 exec --no-startup-id ~/.config/bindscripts/launcher -c;exec --no-startup-id dunstify -a 'Rofi' -i '/usr/share/icons/dunst/system/roficalc.svg' 'calc' -t 800
+
+#reboot/logout i3
+bindsym $mod+F6 exec $ctl -i
+
+#Rofi-Configmenu
+bindsym $mod+c exec ${HOME}/.config/rofi/scripts/rofi-configmenu.sh
+
+#oneko
+bindsym $mod+Shift+F2 exec --no-startup-id oneko -tora -fg black -bg goldenrod
+
+#bindsym $mod+minus exec i3-scratchpad -d500x300 -atc -p0,0 -wtu ~/.notes
+
+#fetch
+bindsym $mod+period exec --no-startup-id $pop -a
+
+# SCRATCHPAD CREATE
+bindsym $MOD+SHIFT+plus move scratchpad
+# SCRATCHPAD SHOW
+bindsym $MOD+plus scratchpad show
+
+#Screenshot-Flameshot
+bindsym Print                   exec $ctl -s
+
+#####################
+#  ┏━╸╻ ╻╻╺┳╸
+#  ┣╸ ┏╋┛┃ ┃
+#  ┗━╸╹ ╹╹ ╹
+###############
+
+bindsym $mod+p exec --no-startup-id $script/launcher -p;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/shutdown.svg' 'PowerMenu' -t 800
+#bindsym $mod+p exec rofi -modi 'Powermenu:~/.config/rofi/scripts/powermenu.sh' -show Powermenu -c '~/.config/rofi/config.rasi';exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/shutdown.svg' 'PowerMenu' -t 800
+#bindsym $mod+Shift+e exec --no-startup-id ~/.config/rofi/bin/android_powermenu;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/shutdown.svg' 'PowerMenu' -t 800
+
+
+#######################
+#  ╻  ┏━┓┏━╸╻┏━
+#  ┃  ┃ ┃┃  ┣┻┓
+#  ┗━╸┗━┛┗━╸╹ ╹
+#################
+
+bindsym $mod+o exec $script/blur-lock.sh;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/lock.svg' 'LOCKING' -t 800
+
+
+###############################################
+#  ╻ ╻┏┳┓   ┏━┓┏━┓┏━┓   ┏━┓╻ ╻╻  ┏━╸┏━┓
+#  ┃╻┃┃┃┃   ┣━┫┣━┛┣━┛   ┣┳┛┃ ┃┃  ┣╸ ┗━┓
+#  ┗┻┛╹ ╹   ╹ ╹╹  ╹     ╹┗╸┗━┛┗━╸┗━╸┗━┛
+#########################################
+
+for_window [window_role="pop-up"] floating enable
+for_window [window_role="task_dialog"] floating enable
+#for_window [urgent="latest"] focus
+for_window [class="Lxappearance"] floating enable
+for_window [class="tkPacman"] floating enable
+for_window [title="htop"] floating enable
+for_window [title="Task Manager"] floating enable
+for_window [class="Nitrogen"] floating enable
+for_window [title="bauh"] floating enable
+for_window [title="Application Finder"] floating enable
+for_window [title="Settings"] floating enable
+for_window [title="Character Map"] floating enable
+for_window [title="Appearance"] floating enabled
+for_window [title="Power Management"] floating enabled
+for_window [title="xsensors*"] floating enabled; border pixel 0
+for_window [title="Tlp-UI"] floating enabled; focus
+for_window [title="Bitwarden"] floating enabled; focus
+for_window [title="Volume Control*"] floating enabled; focus; border pixel 0
+for_window [class="Yad" title="yad-calendar"] floating enable; border pixel 0
+#for_window [class="Yad"] floating enable
+
+########################################################
+#  ╺┳┓┏━┓╻ ╻┏┓╻    ╻    ╻  ┏━┓╻ ╻┏┓╻┏━╸╻ ╻┏━╸┏━┓
+#   ┃┃┣┳┛┃ ┃┃┗┫   ╺╋╸   ┃  ┣━┫┃ ┃┃┗┫┃  ┣━┫┣╸ ┣┳┛
+#  ╺┻┛╹┗╸┗━┛╹ ╹    ╹    ┗━╸╹ ╹┗━┛╹ ╹┗━╸╹ ╹┗━╸╹┗╸
+##################################################
+
+#bindsym $mod+z exec --no-startup-id morc_menu
+#bindsym $mod+Shift+d exec --no-startup-id dmenu_run
+#bindsym $mod+Shift+d exec --no-start-up-id rofi -no-lazy-grab -modi drun
+#bindsym $mod+Shift+d exec --no-startup-id ~/.local/bin/dmen.sh
+# A more modern dmenu replacement is rofi:
+#bindsym $mod+Tab exec --no-startup-id ~/.config/rofi/bin/launcher_slate -c "~/.config/rofi/config.rasi"
+#bindsym $mod+Tab exec --no-startup-id ~/.config/rofi/bin/launcher_misc -c "~/.config/rofi/config.rasi"
+#bindsym $mod+d exec --no-startup-id i3-dmenu-desktop #-fn 'Symbols-Nerd-Font:size=9' -nf '#F57900' -sb '#F57900' -nb '#0E2946' -sf '#0e2946' -i
+#bindsym $mod+d exec --no-startup-id ~/.local/bin/i3dmen.sh
+bindsym $mod+d exec --no-startup-id $script/launcher -m
+bindsym $mod+Shift+d exec --no-startup-id $script/launcher -b
+bindsym $mod+Tab exec --no-startup-id $script/launcher -d
+bindsym $mod+Shift+n exec --no-startup-id $script/launcher -n;exec --no-startup-id dunstify -a 'Web' -i '/usr/share/icons/dunst/system/earth-europa.svg' 'NordVPN' -t 800
+
+
+##########################################
+#  ╻ ╻┏┳┓   ┏━┓┏━╸╺┳╸╺┳╸╻┏┓╻┏━╸┏━┓
+#  ┃╻┃┃┃┃   ┗━┓┣╸  ┃  ┃ ┃┃┗┫┃╺┓┗━┓
+#  ┗┻┛╹ ╹   ┗━┛┗━╸ ╹  ╹ ╹╹ ╹┗━┛┗━┛
+####################################
+
+bindsym $mod+b floating toggle; [floating] border normal 0; [tiling] border pixel 1;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/bordertool.svg' 'border float toggle' -t 800
+bindsym $mod+y border pixel 1;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/bordertool.svg' 'border 1px' -t 800
+bindsym $mod+n border normal;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/bordertool.svg' 'border normal' -t 800
+bindsym $mod+m exec --no-startup-id $script/toggle-unclutter.sh
+
+# Toggle sticky container
+bindsym $mod+Shift+s sticky toggle;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/magnet.svg' 'Sticky-Container' -t 800
+
+# kill focused window
+bindsym $mod+Shift+q kill
+
+# reload the configuration file
+bindsym $mod+Shift+c reload;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/rotate-exclamation.svg' 'Reloading i3 config' -t 800
+# restart i3 inplace (preserves your layout/session, can be used to upgrade i3)
+bindsym $mod+Shift+r restart
+# exit i3 (logs you out of your X session)
+#bindsym $mod+Shift+e exec "i3-nagbar -t warning -m ' Arch Linux' -B ' Restart i3 Session'  'i3-msg exit' -B  '  Lock'  'pkill i3-nagbar && i3lock -i ~/Pictures/wallpaperflare.com_wallpaper.jpg -C -d -I 5 -k' -B '  Reboot' 'pkill i3-nagbar && reboot' -B '  Shutdown' 'pkill i3-nagbar && shutdown -h now'"
+
+# Float modifier ##
+# Use Mouse+$mod to drag floating windows to their wanted position
+floating_modifier $mod
+
+#default_border pixel 2
+#default_floating_border pixel 2
+hide_edge_borders none
+#new_window pixel 1
+#new_float normal 1
+hide_edge_borders vertical
+popup_during_fullscreen smart
+floating_minimum_size 100 x 100
+floating_maximum_size 1280 x 720
+##for_window [class="^.*"] border pixel 2
+for_window [title="^.*"] border pixel 2
+#default_floating_border normal 0
+for_window [class=".*"] title_format "%title - %class"
+#border_radius 10
+
+# change focus
+bindsym $mod+j focus left
+bindsym $mod+k focus down
+bindsym $mod+l focus up
+bindsym $mod+semicolon focus right
+
+# alternatively, you can use the cursor keys:
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+
+# move focused window
+bindsym $mod+Shift+j move left
+bindsym $mod+Shift+k move down
+bindsym $mod+Shift+l move up
+bindsym $mod+Shift+semicolon move right
+
+# alternatively, you can use the cursor keys:
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+# split in horizontal orientation
+bindsym $mod+h split h;exec dunstify -a 'i3' -i '/usr/share/icons/dunst/system/distribute-horizontal-margin.svg' 'Horizontal Split' -t 1000
+
+# split in vertical orientation
+bindsym $mod+v split v;exec dunstify -a 'i3' -i '/usr/share/icons/dunst/system/distribute-vertical-margin.svg' 'Vertical Split' -t 1000
+
+# enter fullscreen mode for the focused container
+bindsym $mod+f fullscreen toggle;exec dunstify -a 'i3' -i '/usr/share/icons/dunst/system/fullscreen.svg' 'FullScreen' -t 1000
+
+# change container layout (stacked, tabbed, toggle split)
+bindsym $mod+s layout stacking;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/stacked.svg' 'Stacking' -t 1000
+bindsym $mod+t layout tabbed;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/tabbed.svg' 'Tabbed' -t 1000
+bindsym $mod+e layout toggle split;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/table-layout.svg' 'Toggle Layout' -t 1000
+
+#for_window [class=".*"] split toggle
+#bindsym $mod+shift+z split toggle kill
+
+# toggle tiling / floating
+bindsym $mod+Shift+space floating toggle;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/float.svg' 'Toggle Floating' -t 1000
+
+# change focus between tiling / floating windows
+bindsym $mod+space focus mode_toggle;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/search.svg' 'switch focus tiling/floating' -t 1000
+
+# focus the parent container
+bindsym $mod+a focus parent;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/focusp.svg' 'Focus Parent' -t 1000
+
+# focus the child container
+bindsym $mod+z focus child;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/focusc.svg' 'focus child' -t 1000
+
+
+###########################
+#  ┏━┓┏━╸┏━┓╻╺━┓┏━╸
+#  ┣┳┛┣╸ ┗━┓┃┏━┛┣╸
+#  ╹┗╸┗━╸┗━┛╹┗━╸┗━╸
+#####################
+# resize window (you can also use the mouse for that)
+bindsym $mod+r mode "    ";exec dunstify -a 'i3' 'Resize' -i '/usr/share/icons/dunst/system/resize.svg' -t 1000
+
+mode "    " {
+        # These bindings trigger as soon as you enter the resize mode
+        bindsym j resize shrink width 10 px or 10 ppt
+        bindsym k resize grow height 10 px or 10 ppt
+        bindsym l resize shrink height 10 px or 10 ppt
+        bindsym semicolon resize grow width 10 px or 10 ppt
+
+        # same bindings, but for the arrow keys
+        bindsym Left resize shrink width 10 px or 10 ppt
+        bindsym Down resize grow height 10 px or 10 ppt
+        bindsym Up resize shrink height 10 px or 10 ppt
+        bindsym Right resize grow width 10 px or 10 ppt
+
+        # back to normal: Enter or Escape or $mod+r
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
+        bindsym $mod+r mode "default"
+}
+
+
+#######################
+#  ┏━╸┏━┓┏━┓┏━┓
+#  ┃╺┓┣━┫┣━┛┗━┓
+#  ┗━┛╹ ╹╹  ┗━┛
+#################
+# Necessary for i3-gaps to work properly (pixel can be any value)
+for_window [class="^.*"] border pixel 1
+
+# Smart Gaps
+smart_gaps on
+
+# Smart Borders
+smart_borders on
+
+# Set inner/outer gaps
+gaps inner 5
+gaps outer -2
+
+# Gaps mode
+set $mode_gaps Gaps: (o) outer, (i) inner
+set $mode_gaps_outer Outer Gaps: +|-|0 (local), Shift + +|-|0 (global)
+set $mode_gaps_inner Inner Gaps: +|-|0 (local), Shift + +|-|0 (global)
+bindsym $mod+Shift+g mode "$mode_gaps";;exec dunstify -a 'i3' 'Gaps' -i '/usr/share/icons/dunst/system/gaps.svg' -t 1000
+
+mode "$mode_gaps" {
+        bindsym o      mode "$mode_gaps_outer"
+        bindsym i      mode "$mode_gaps_inner"
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
+}
+
+mode "$mode_gaps_inner" {
+        bindsym plus  gaps inner current plus 5
+        bindsym minus gaps inner current minus 5
+        bindsym 0     gaps inner current set 0
+
+        bindsym Shift+plus  gaps inner all plus 5
+        bindsym Shift+minus gaps inner all minus 5
+        bindsym Shift+0     gaps inner all set 0
+
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
+}
+
+mode "$mode_gaps_outer" {
+        bindsym plus  gaps outer current plus 5
+        bindsym minus gaps outer current minus 5
+        bindsym 0     gaps outer current set 0
+
+        bindsym Shift+plus  gaps outer all plus 5
+        bindsym Shift+minus gaps outer all minus 5
+        bindsym Shift+0     gaps outer all set 0
+
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
+}
+
+
+################################
+#  ╻ ╻┏━┓┏━┓╻┏ ┏━┓┏━┓┏━┓┏━╸┏━╸
+#  ┃╻┃┃ ┃┣┳┛┣┻┓┗━┓┣━┛┣━┫┃  ┣╸
+#  ┗┻┛┗━┛╹┗╸╹ ╹┗━┛╹  ╹ ╹┗━╸┗━╸
+################################
+workspace_auto_back_and_forth yes
+workspace_layout default
+
+set $ws1 "1:"
+set $ws2 "2:"
+set $ws3 "3:"
+set $ws4 "4:"
+set $ws5 "5:漣"
+
+# switch to workspace
+bindsym $mod+1 workspace number $ws1;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/square-1.svg' 'workspace 1' -t 800
+bindsym $mod+2 workspace number $ws2;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/square-2.svg' 'workspace 2' -t 800
+bindsym $mod+3 workspace number $ws3;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/square-3.svg' 'workspace 3' -t 800
+bindsym $mod+4 workspace number $ws4;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/square-4.svg' 'workspace 4' -t 800
+bindsym $mod+5 workspace number $ws5;exec --no-startup-id dunstify -a 'i3' -i '/usr/share/icons/dunst/system/square-5.svg' 'workspace 5' -t 800
+
+# move focused container to workspace
+bindsym $mod+Shift+1 move container to workspace number $ws1;exec dunstify -a 'i3' 'move to workspace 1' -i '/usr/share/icons/dunst/system/move-win.svg' -t 1000
+bindsym $mod+Shift+2 move container to workspace number $ws2;exec dunstify -a 'i3' 'move to workspace 2' -i '/usr/share/icons/dunst/system/move-win.svg' -t 1000
+bindsym $mod+Shift+3 move container to workspace number $ws3;exec dunstify -a 'i3' 'move to workspace 3' -i '/usr/share/icons/dunst/system/move-win.svg' -t 1000
+bindsym $mod+Shift+4 move container to workspace number $ws4;exec dunstify -a 'i3' 'move to workspace 4' -i '/usr/share/icons/dunst/system/move-win.svg' -t 1000
+bindsym $mod+Shift+5 move container to workspace number $ws5;exec dunstify -a 'i3' 'move to workspace 5' -i '/usr/share/icons/dunst/system/move-win.svg' -t 1000
+
+
+##########################################
+#  ╻ ╻┏━┓   ┏━┓┏━┓┏━┓╻┏━╸┏┓╻┏┳┓┏━╸┏┓╻╺┳╸
+#  ┃╻┃┗━┓   ┣━┫┗━┓┗━┓┃┃╺┓┃┗┫┃┃┃┣╸ ┃┗┫ ┃
+#  ┗┻┛┗━┛   ╹ ╹┗━┛┗━┛╹┗━┛╹ ╹╹ ╹┗━╸╹ ╹ ╹
+##########################################
+assign [class="^URxvt$"] $ws1
+assign [class="^Chromium"] $ws2
+assign [class="^Nemo"] $ws3
+assign [class="^Lxappearance"] $ws5
+assign [class="^tkPacman"] $ws4
+assign [title="^htop"] $ws4
+assign [title="^Task Manager"] $ws4
+assign [class="^Nitrogen"] $ws5
+assign [title="^Application Finder"] $ws4
+assign [title="^Settings"] $ws5
+assign [title="^Character Map"] $ws4
+assign [title="^Appearance"] $ws5
+assign [title="^Power Management"] $ws5
+assign [title="^xsensors*"] $ws4
+assign [title="^bitwarden"] $ws3
+assign [title="^Tlp-UI"] $ws5
+assign [class="^Pavucontrol*"] $ws5
+
+################################
+#  ┏━┓╺┳╸┏━┓╺┳╸╻ ╻┏━┓┏┓ ┏━┓┏━┓
+#  ┗━┓ ┃ ┣━┫ ┃ ┃ ┃┗━┓┣┻┓┣━┫┣┳┛
+#  ┗━┛ ╹ ╹ ╹ ╹ ┗━┛┗━┛┗━┛╹ ╹╹┗╸
+################################
+
+###### i3status ######
+
+bar {
+        i3bar_command i3bar -t
+        #id bar-1
+        #font pango:Font Awesome 6 Pro 9px
+        #font pango: RobotoMono Nerd Font 11px
+        font pango: MesloLGS NF 14px
+        height 18
+#        status_command py3status -b -c /etc/i3status.conf
+#       status_command ~/.config/conky/conky.sh
+        status_command i3blocks
+        strip_workspace_numbers yes
+        #separator_symbol        "┊"
+        #separator_symbol       ""
+        #tray_output none
+        #tray_padding 0
+
+        colors {
+        #background #222D31bb
+        background #000000bb
+        statusline #f1f1f1
+        #separator  #a200ff
+        #separator #ffffff
+
+        #####################border##backgr##text##
+        focused_workspace   #b967ff #b967ff #000000
+        active_workspace    #212121 #212121 #ffffff
+        inactive_workspace  #101010 #010101 #86888c
+        urgent_workspace    #ff0000 #d41243 #c1c1c1
+        binding_mode        #229c56 #229c56 #ffffff
+
+       # focused_workspace  #F9FAF9 #16a085 #292F34
+       # active_workspace   #595B5B #353836 #99ff00
+       # inactive_workspace #000000 #222111 #333333
+       # urgent_workspace   #16a085 #FDF6E3 #E5201D
+       # binding_mode       #16a085 #2C2C2C #F9FAF9
+    }
+}
+
+## bar 2 ##
+
+#bar {
+#       i3bar_command i3bar -t
+#       workspace_buttons no
+#       position top
+#       id bar-2
+#       height 11
+#       status_command py3status -c /etc/i3statussrv.conf
+#       strip_workspace_numbers yes
+#       #separator_symbol        "┊"
+#       #separator_symbol       "."#    tray_output none
+#       tray_padding 0
+
+#    colors {
+       # background #222D31bb
+#       background #000000bb
+#        statusline #f1f1f1
+#        #separator  #a200ff#
+#       separator #ffffff
+#    }
+#}
+
+###### polybar ######
+### use autostart ###
+#bar {
+#    i3bar_command $HOME/.config/polybar/launch.sh
+#}
+
+
+##### bumblebee_status #####
+#
+#bar {
+#       i3bar_command i3bar -t
+        #font pango:MesloLGS NF 9
+        #font pango:Font Awesome 6 Duotone 9
+#       font pango:Font Awesome 6 Pro 9
+
+        #position top
+#       height 18
+#       strip_workspace_numbers yes
+#       tray_padding 0
+#       status_command bumblebee-status \
+#       -m arch_update cpu memory disk:root disk:home brightness pasink battery dunst time pihole nic \
+#       -p pihole.address=http://192.168.1.2 memory.format={used}'({percent:05.02f}%)' battery.decorate=false disk.system=SI disk.format={used}'({percent:05.02f}%)' root.path=/ home.path=/home nic.theme.align=right,center nic.format='' time.format="%H:%M"\
+#       -a cpu memory battery \
+#       -t wal-npl\
+#       -i awesome-fonts2
+
+#   colors {
+      #background #222D31bb
+#       background #000000bb
+#       statusline #f1f1f1
+      #separator  #a200ff
+#       separator #ffffff
+#                           |border |backgr |text
+#        focused_workspace    #b967ff #b967ff #000000
+#        active_workspace    #212121 #212121 #ffffff
+#        inactive_workspace  #101010 #010101 #86888c
+#        urgent_workspace    #ff0000 #d41243 #c1c1c1
+#        binding_mode        #229c56 #229c56 #ffffff
+
+#         }
+#   }
+
+##### i3status-rust  #####
+
+#bar {
+#       i3bar_command i3bar -t
+        #id bar-1
+        #font pango:Font Awesome 6 Pro 12px
+        #font pango: MesloLGS NF 12px
+        #font pango: SFMono Nerd Font Mono 13px
+#       font pango: Inter Nerd Font 13px
+        #font pango: JetBrains Mono Regular 12px
+#       height 18
+#        status_command i3status-rs ${HOME}/.config/i3status-rust/config.toml
+#       strip_workspace_numbers yes
+        #separator_symbol        "┊"
+        #separator_symbol       " "
+        #separator_symbol    "\ue0b2"
+        #tray_output none
+#       tray_padding 0
+
+#       colors {
+        #background #222D31bb
+#       background #010101cc
+#       statusline #f1f1f1
+        #separator  #a200ff
+        #separator #ffffff
+        #####################border##backgr##text##
+#        focused_workspace   #b967ff #b967ff #000000
+#        active_workspace    #212121 #212121 #ffffff
+#        inactive_workspace  #101010 #010101 #86888c
+#        urgent_workspace    #ff0000 #d41243 #c1c1c1
+#        binding_mode        #229c56 #229c56 #ffffff
+
+       # focused_workspace  #F9FAF9 #16a085 #292F34
+       # active_workspace   #595B5B #353836 #99ff00
+       # inactive_workspace #000000 #222111 #333333
+       # urgent_workspace   #16a085 #FDF6E3 #E5201D
+       # binding_mode       #16a085 #2C2C2C #F9FAF9
+#    }
+#}
+
+####################
+#  ╺┳╸╻ ╻┏━╸┏┳┓┏━╸
+#   ┃ ┣━┫┣╸ ┃┃┃┣╸
+#   ╹ ╹ ╹┗━╸╹ ╹┗━╸
+####################
+#wallpaper
+bindsym $mod+Shift+u exec  wal -i ~/Pictures -o "$HOME/.config/dunst/launch_dunst.sh"
+
+# Color variables
+set $unfocused_border #1D1F21
+set $focused_border #9944ff
+
+# Set colors from Xresources
+# NOTE: The '#f0f0f0' in the lines below is the color i3 will use if
+# it fails to get colors from Xresources.
+
+set_from_resource $fg i3wm.color7 #f0f0f0
+set_from_resource $bg i3wm.color2 #f0f0f0
+set_from_resource $tx i3wm.color6 #f0f0f0
+
+# class                 border  backgr. text indicator child_border
+client.focused          $bg     $bg     $tx  $bg       $bg
+client.focused_inactive $bg     $bg     $fg  $bg       $bg
+client.unfocused        $tx     $bg     $fg  $bg       $bg
+client.urgent           $bg     $bg     $fg  $bg       $bg
+client.placeholder      $bg     $bg     $fg  $bg       $bg
+client.background       $bg
+
+# Apply .Xresource. As far as I know, only needed here if using starx (dont have a login manager)
+exec_always --no-startup-id xrdb ~/.Xresources
+
+# Apply the last colorscheme generated without changing the background by using -n (-R load?)
+exec_always --no-startup-id wal wal -i Pictures/4k-pattern_3840x2160.jpg;cat ~/.cache/wal/sequences &
+
+# Apply a background different than the one used by wal
+# If this isn't needed, remove it and remove -n flag from the above command
+#exec_always --no-startup-id feh --bg-center ~/Pictures/desktop-1920x1080.png
+exec --no-startup-id nitrogen --restore
+#exec_always --no-startup-id feh --bg-center ~Pictures/4k-pattern_3840x2160.jpg

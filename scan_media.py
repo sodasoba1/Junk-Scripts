@@ -100,38 +100,4 @@ def scan():
     print(f"CSV written to: {CSV_PATH}")
 
 if __name__ == "__main__":
-    scan()            for file in files:
-                if file.lower().endswith(extensions):
-                    total_scanned += 1
-                    full_path = os.path.join(root, file)
-                    
-                    # Terminal feedback
-                    if total_scanned % 10 == 0:
-                        print(f"  Scanned: {total_scanned} | Found: {found_count}", end='\r')
-
-                    streams = get_audio_info(full_path)
-                    
-                    if len(streams) > 1:
-                        langs = [s.get('tags', {}).get('language', 'und').lower() for s in streams]
-                        
-                        # Only log if NOT purely English
-                        if not all(l == 'eng' for l in langs):
-                            found_count += 1
-                            f_size = os.path.getsize(full_path) / (1024**3)
-                            
-                            for i, s in enumerate(streams):
-                                writer.writerow({
-                                    'Filename': file,
-                                    'Size_GB': round(f_size, 2),
-                                    'Location': root,
-                                    'Track': i + 1,
-                                    'Language': s.get('tags', {}).get('language', 'und').upper(),
-                                    'Codec': s.get('codec_name', 'unknown'),
-                                    'Title': s.get('tags', {}).get('title', '')
-                                })
-
-    print(f"\nScan Complete. Total Flagged: {found_count}")
-    print(f"Results saved to: {output_file}")
-
-if __name__ == "__main__":
     scan()

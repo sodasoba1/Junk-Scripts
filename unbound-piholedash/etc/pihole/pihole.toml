@@ -1,0 +1,3 @@
+port settings
+  
+  port = "8080o,443os,[::]:8080o,[::]:443os" ### CHANGED, default = "80o,443os,[::]:80o,[::]:443os"

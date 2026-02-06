@@ -1,0 +1,14 @@
+[Unit]
+Description=Unbound Dashboard
+After=network.target
+
+[Service]
+User=USER
+Group=GROUP
+WorkingDirectory=/home/USER/unbound_dashboard
+# We add the full path to python3 to be safe 
+ExecStart=/usr/bin/python3 /home/USER/unbound_dashboard/unbound_dashboard.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

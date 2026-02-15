@@ -1,160 +1,600 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Unbound - {{ hostname }}</title>
-    <meta http-equiv="refresh" content="{{ refresh }}">
-    <style>
-        :root {
-            /* Global Colors */
-            --bg-body: #353c42;
-            --bg-sidebar: #272c30;
-            --bg-header: #272c30;
-            --bg-subheader: #1e2225;
-            --bg-hover: #22272a;
-            --text-subheader: #8e989d;
-            --text-link: #bdc4ca;
-            --text-bright: #ffffff;
-            --text-label: #b0c5cb;
-            --border-card: #696969;
-            --border-sidebar: #2c3b41;
-            /* Stat Box Backgrounds */
-            --box-blue: #007997;
-            --box-green: #005c32;
-            --box-yellow: #b1720c;
-            --box-red: #913225;
-            /* Stat Box Icons */
-            --icon-blue: #006780;
-            --icon-green: #004e2b;
-            --icon-yellow: #97610a;
-            --icon-red: #7b2b1f;
-        }
+   <head>
+      <title>Unbound - {{ hostname }}</title>
+      <meta charset="UTF-8">
+      <style>
+         :root {
+         --bg-body: #353c42;
+         --bg-sidebar: #272c30;
+         --bg-header: #272c30;
+         --bg-subheader: #1e2225;
+         --bg-hover: #22272a;
+         --text-subheader: #8e989d;
+         --text-link: #bdc4ca;
+         --text-bright: #ffffff;
+         --border-sidebar: #2c3b41;
+         /* Box Colors */
+         --box-blue: #007997;
+         --box-green: #005c32;
+         --box-yellow: #b1720c;
+         --box-red: #913225;
+         --box-purple: #605ca8;
+         --box-teal: #00a65a;
+         --box-orange: #c87f0a;
+         --box-maroon: #802626;
+         }
+         body {
+         margin: 0;
+         font-family: 'Source Sans Pro', sans-serif;
+         background: var(--bg-body);
+         color: var(--text-link);
+         font-size: 14px;
+         }
+         .header {
+         height: 50px;
+         display: flex;
+         background: var(--bg-header);
+         position: fixed;
+         width: 100%;
+         top: 0;
+         z-index: 1000;
+         box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+         }
+         .header-content {
+         display: flex;
+         justify-content: space-between;
+         align-items: center;
+         padding: 0 20px;
+         box-sizing: border-box;
+         width: 100%;
+         }
+         .header-title {
+         font-size: 20px;
+         color: var(--text-bright);
+         letter-spacing: 0.5px;
+         }
+         #timer {
+         font-size: 0.9em;
+         opacity: 0.7;
+         color: var(--text-link);
+         }
+         .sidebar {
+         position: fixed;
+         top: 50px;
+         left: 0;
+         width: 200px;
+         height: 100%;
+         background: var(--bg-sidebar);
+         overflow-y: auto;
+         }
+         .sidebar h2 {
+         font-size: 11px;
+         color: var(--text-subheader);
+         background: var(--bg-subheader);
+         padding: 12px 15px;
+         margin: 0;
+         text-transform: uppercase;
+         font-weight: 600;
+         letter-spacing: 1px;
+         }
+         .sidebar a {
+         display: flex;
+         align-items: center;
+         padding: 12px 15px;
+         color: var(--text-link);
+         text-decoration: none;
+         border-left: 3px solid transparent;
+         }
+         .sidebar a:hover {
+         background: var(--bg-hover);
+         color: var(--text-bright);
+         border-left-color: #3c8dbc;
+         }
+         .sidebar a svg {
+         margin-right: 12px;
+         width: 16px;
+         height: 16px;
+         fill: currentColor;
+         }
+         .content {
+         margin-left: 230px;
+         padding: 70px 20px 20px 20px;
+         }
+         .section-label {
+         font-size: 12px;
+         color: var(--text-subheader);
+         text-transform: uppercase;
+         font-weight: 700;
+         margin: 20px 0 10px 0;
+         letter-spacing: 1px;
+         border-bottom: 1px solid #444;
+         padding-bottom: 5px;
+         }
+         .box-container {
+         display: grid;
+         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+         gap: 15px;
+         margin-bottom: 25px;
+         }
+         .small-box {
+         border-radius: 3px;
+         position: relative;
+         padding: 15px;
+         color: #fff;
+         box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+         overflow: hidden;
+         min-height: 100px;
+         }
+         .small-box .inner {
+         position: relative;
+         z-index: 10;
+         padding-bottom: 40px; /* Increased for better spacing */
+         }
+         .small-box h3 {
+         font-size: 22px;
+         font-weight: 700;
+         margin: 4px 0 0 0;
+         white-space: nowrap;
+         line-height: 1.2;
+         }
+         .small-box p {
+         font-size: 11px;
+         margin: 0;
+         font-weight: 600;
+         text-transform: uppercase;
+         opacity: 0.9;
+         }
+         .small-box .icon {
+         position: absolute;
+         right: 10px;
+         bottom: 5px;
+         z-index: 1;
+         color: rgba(0,0,0,0.15);
+         }
+         .small-box .icon svg {
+         width: 50px;
+         height: 50px;
+         fill: currentColor;
+         }
+         /* Sparkline Styles - Bottom-left aligned */
+         .sparkline {
+         position: absolute !important;
+         bottom: -3px;
+         left: 1px;
+         display: flex;
+         align-items: flex-end;
+         justify-content: flex-start;
+         height: 28px;
+         width: 100px;
+         gap: 1px;
+         z-index: 5;
+         }
+         .sparkline span {
+         flex: 1;
+         background: rgba(255,255,255,0.6);
+         border-radius: 2px 2px 0 0;
+         min-width: 2px;
+         box-shadow: 0 0 2px rgba(255,255,255,0.3);
+         transition: height 0.3s ease;
+         }
+         /* Trend indicator - positioned between h3 and sparkline */
+         .trend-indicator {
+         font-size: 13px;
+         font-weight: 600;
+         margin-top: 3px;
+         margin-bottom: 0;
+         color: white;
+         position: relative;
+         z-index: 10;
+         line-height: 1.3;
+         }
+         /* Mini stat badge - Bottom-left aligned (same position as sparkline) */
+         .mini-stat {
+         position: absolute !important;
+         bottom: -3px;
+         left: 1px;
+         font-size: 10px;
+         background: rgba(0,0,0,0.25);
+         padding: 4px 9px;
+         border-radius: 3px;
+         font-weight: 600;
+         letter-spacing: 0.3px;
+         z-index: 5;
+         white-space: nowrap;
+         line-height: 1.3;
+         }
+         .bg-blue { background-color: var(--box-blue); }
+         .bg-green { background-color: var(--box-green); }
+         .bg-yellow { background-color: var(--box-yellow); }
+         .bg-red { background-color: var(--box-red); }
+         .bg-purple { background-color: var(--box-purple); }
+         .bg-teal { background-color: var(--box-teal); }
+         .bg-orange { background-color: var(--box-orange); }
+         .bg-maroon { background-color: var(--box-maroon); }
+         .footer {
+         margin-top: 30px;
+         font-size: 11px;
+         color: #666;
+         text-align: center;
+         padding: 15px;
+         border-top: 1px solid var(--border-sidebar);
+         }
+      </style>
+   </head>
+   <body>
+      <div class="header">
+         <div class="header-content">
+            <div class="header-title">un<b>bound</b></div>
+            <div id="timer"></div>
+         </div>
+      </div>
+      <div class="sidebar">
+         <h2>LAN Services</h2>
+         <a href="http://pi.hole/admin">
+            <svg viewBox="0 0 26 26">
+               <path d="M4.344 0c0.238 4.792 3.256 7.056 6.252 7.376 0.165 -1.692 -4.319 -5.6 -4.319 -5.6 -0.008 -0.011 0.009 -0.025 0.019 -0.014 0 0 4.648 4.01 5.423 5.645 2.762 -0.15 5.196 -1.947 5 -4.912 0 0 -4.12 -0.613 -5 4.618C11.48 2.753 8.993 0 4.344 0zM12 7.682v0.002a3.68 3.68 0 0 0 -2.591 1.077L4.94 13.227a3.683 3.683 0 0 0 -0.86 1.356 3.31 3.31 0 0 0 -0.237 1.255A3.681 3.681 0 0 0 4.92 18.45l4.464 4.466a3.69 3.69 0 0 0 2.251 1.06l0.002 0.001c0.093 0.01 0.187 0.015 0.28 0.017l-0.1 -0.008c0.06 0.003 0.117 0.009 0.177 0.009l-0.077 -0.001L12 24l-0.004 -0.005a3.68 3.68 0 0 0 2.61 -1.077l4.469 -4.465a3.683 3.683 0 0 0 1.006 -1.888l0.012 -0.063a3.682 3.682 0 0 0 0.057 -0.541l0.003 -0.061c0 -0.017 0.003 -0.05 0.004 -0.06h-0.002a3.683 3.683 0 0 0 -1.077 -2.607l-4.466 -4.468a3.694 3.694 0 0 0 -1.564 -0.927l-0.07 -0.02a3.43 3.43 0 0 0 -0.946 -0.133L12 7.682zm3.165 3.357c0.023 1.748 -1.33 3.078 -1.33 4.806 0.164 2.227 1.733 3.207 3.266 3.146 -0.035 0.003 -0.068 0.007 -0.104 0.009 -1.847 0.135 -3.209 -1.326 -5.002 -1.326 -2.23 0.164 -3.21 1.736 -3.147 3.27l-0.008 -0.104c-0.133 -1.847 1.328 -3.21 1.328 -5.002 -0.173 -2.32 -1.867 -3.284 -3.46 -3.132 0.1 -0.011 0.203 -0.021 0.31 -0.027 1.847 -0.133 3.209 1.328 5.002 1.328 2.082 -0.155 3.074 -1.536 3.145 -2.968zM4.344 0c0.238 4.792 3.256 7.056 6.252 7.376 0.165 -1.692 -4.319 -5.6 -4.319 -5.6 -0.008 -0.011 0.009 -0.025 0.019 -0.014 0 0 4.648 4.01 5.423 5.645 2.762 -0.15 5.196 -1.947 5 -4.912 0 0 -4.12 -0.613 -5 4.618C11.48 2.753 8.993 0 4.344 0zM12 7.682v0.002a3.68 3.68 0 0 0 -2.591 1.077L4.94 13.227a3.683 3.683 0 0 0 -0.86 1.356 3.31 3.31 0 0 0 -0.237 1.255A3.681 3.681 0 0 0 4.92 18.45l4.464 4.466a3.69 3.69 0 0 0 2.251 1.06l0.002 0.001c0.093 0.01 0.187 0.015 0.28 0.017l-0.1 -0.008c0.06 0.003 0.117 0.009 0.177 0.009l-0.077 -0.001L12 24l-0.004 -0.005a3.68 3.68 0 0 0 2.61 -1.077l4.469 -4.465a3.683 3.683 0 0 0 1.006 -1.888l0.012 -0.063a3.682 3.682 0 0 0 0.057 -0.541l0.003 -0.061c0 -0.017 0.003 -0.05 0.004 -0.06h-0.002a3.683 3.683 0 0 0 -1.077 -2.607l-4.466 -4.468a3.694 3.694 0 0 0 -1.564 -0.927l-0.07 -0.02a3.43 3.43 0 0 0 -0.946 -0.133L12 7.682zm3.165 3.357c0.023 1.748 -1.33 3.078 -1.33 4.806 0.164 2.227 1.733 3.207 3.266 3.146 -0.035 0.003 -0.068 0.007 -0.104 0.009 -1.847 0.135 -3.209 -1.326 -5.002 -1.326 -2.23 0.164 -3.21 1.736 -3.147 3.27l-0.008 -0.104c-0.133 -1.847 1.328 -3.21 1.328 -5.002 -0.173 -2.32 -1.867 -3.284 -3.46 -3.132 0.1 -0.011 0.203 -0.021 0.31 -0.027 1.847 -0.133 3.209 1.328 5.002 1.328 2.082 -0.155 3.074 -1.536 3.145 -2.968z" />
+            </svg>
+            Pi-hole Admin
+         </a>
+         <a href="#" style="font-size: 11px; pointer-events: none;">
+            <svg viewBox="0 0 24 24" style="width:12px;">
+               <circle id="api_status_dot" cx="12" cy="12" r="10" fill="gray"/>
+            </svg>
+            <span id="api_status_text">Checking...</span>
+         </a>
+         <h2></h2>Server</h2>
+         <a href="http://ser.ver/">
+            <svg viewBox="0 0 16 16">
+             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5s3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5s-3.879-1.168-5.168-2.457A13 13 0 0 1 1.172 8z"/>
+  <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>
+</svg>
+            link 2
+         </a>
+         <a href="http://link2.ser.ver/">
+            <svg viewBox="0 0 16 16">
+<path d="M2.5 13.5A.5.5 0 0 1 3 13h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5M13.991 3l.024.001a1.5 1.5 0 0 1 .538.143.76.76 0 0 1 .302.254c.067.1.145.277.145.602v5.991l-.001.024a1.5 1.5 0 0 1-.143.538.76.76 0 0 1-.254.302c-.1.067-.277.145-.602.145H2.009l-.024-.001a1.5 1.5 0 0 1-.538-.143.76.76 0 0 1-.302-.254C1.078 10.502 1 10.325 1 10V4.009l.001-.024a1.5 1.5 0 0 1 .143-.538.76.76 0 0 1 .254-.302C1.498 3.078 1.675 3 2 3zM14 2H2C0 2 0 4 0 4v6c0 2 2 2 2 2h12c2 0 2-2 2-2V4c0-2-2-2-2-2"/>
+</svg>
+            link 3
+         </a>
+         <a href="http://link3.ser.ver/">
+            <svg viewBox="0 0 16 16">
+<path d="M4 4.85v.9h1v-.9zm7 0v.9h1v-.9zm-7 1.8v.9h1v-.9zm7 0v.9h1v-.9zm-7 1.8v.9h1v-.9zm7 0v.9h1v-.9zm-7 1.8v.9h1v-.9zm7 0v.9h1v-.9z"/>
+  <path d="M1.5 3A1.5 1.5 0 0 0 0 4.5V6a.5.5 0 0 0 .5.5 1.5 1.5 0 1 1 0 3 .5.5 0 0 0-.5.5v1.5A1.5 1.5 0 0 0 1.5 13h13a1.5 1.5 0 0 0 1.5-1.5V10a.5.5 0 0 0-.5-.5 1.5 1.5 0 0 1 0-3A.5.5 0 0 0 16 6V4.5A1.5 1.5 0 0 0 14.5 3zM1 4.5a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 .5.5v1.05a2.5 2.5 0 0 0 0 4.9v1.05a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-1.05a2.5 2.5 0 0 0 0-4.9z"/>
+</svg>
+            link 4
+         </a>
+         <a href="http://link4.ser.ver/">
+         <svg viewBox="0 0 16 16">
+  <path d="M4.406 1.342A5.53 5.53 0 0 1 8 0c2.69 0 4.923 2 5.166 4.579C14.758 4.804 16 6.137 16 7.773 16 9.569 14.502 11 12.687 11H10a.5.5 0 0 1 0-1h2.688C13.979 10 15 8.988 15 7.773c0-1.216-1.02-2.228-2.313-2.228h-.5v-.5C12.188 2.825 10.328 1 8 1a4.53 4.53 0 0 0-2.941 1.1c-.757.652-1.153 1.438-1.153 2.055v.448l-.445.049C2.064 4.805 1 5.952 1 7.318 1 8.785 2.23 10 3.781 10H6a.5.5 0 0 1 0 1H3.781C1.708 11 0 9.366 0 7.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383"/>
+  <path d="M7.646 15.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 14.293V5.5a.5.5 0 0 0-1 0v8.793l-2.146-2.147a.5.5 0 0 0-.708.708z"/>
+</svg>
+            link 5
+         </a>
+         <a href="http://link5.ser.ver/">
+                        <svg viewBox="0 0 16 16">
+ <path d="M6.79 5.093A.5.5 0 0 0 6 5.5v5a.5.5 0 0 0 .79.407l3.5-2.5a.5.5 0 0 0 0-.814z"/>
+  <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z"/>
+</svg>
+            link 6
+         </a>
+         <a href="http://link6.ser.ver/">
+                        <svg viewBox="0 0 16 16">
+ <path d="M14.5 3a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5zm-13-1A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2z"/>
+  <path d="M7 5.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m-1.496-.854a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 1 1 .708-.708l.146.147 1.146-1.147a.5.5 0 0 1 .708 0M7 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m-1.496-.854a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 0 1 .708-.708l.146.147 1.146-1.147a.5.5 0 0 1 .708 0"/>
+</svg>
+            link 7
+         </a>
+         <h2>Router</h2>
+         <a href="http://gatway.ser.ver/">
+                        <svg viewBox="0 0 16 16">
+ <path d="M5.5 1.5A1.5 1.5 0 0 1 7 0h2a1.5 1.5 0 0 1 1.5 1.5v11a1.5 1.5 0 0 1-1.404 1.497c.35.305.872.678 1.628 1.056A.5.5 0 0 1 10.5 16h-5a.5.5 0 0 1-.224-.947c.756-.378 1.277-.75 1.628-1.056A1.5 1.5 0 0 1 5.5 12.5zM7 1a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-11A.5.5 0 0 0 9 1z"/>
+  <path d="M8.5 2.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0m0 2a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0m0 2a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0m0 2a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0"/>
+</svg>
+            Gateway
+         </a>
+         <a href="http://mesh.ser.ver/">
+                        <svg viewBox="0 0 16 16">
+  <path d="M5.525 3.025a3.5 3.5 0 0 1 4.95 0 .5.5 0 1 0 .707-.707 4.5 4.5 0 0 0-6.364 0 .5.5 0 0 0 .707.707"/>
+  <path d="M6.94 4.44a1.5 1.5 0 0 1 2.12 0 .5.5 0 0 0 .708-.708 2.5 2.5 0 0 0-3.536 0 .5.5 0 0 0 .707.707ZM2.5 11a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1m4.5-.5a.5.5 0 1 0 1 0 .5.5 0 0 0-1 0m2.5.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1m1.5-.5a.5.5 0 1 0 1 0 .5.5 0 0 0-1 0m2 0a.5.5 0 1 0 1 0 .5.5 0 0 0-1 0"/>
+  <path d="M2.974 2.342a.5.5 0 1 0-.948.316L3.806 8H1.5A1.5 1.5 0 0 0 0 9.5v2A1.5 1.5 0 0 0 1.5 13H2a.5.5 0 0 0 .5.5h2A.5.5 0 0 0 5 13h6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5h.5a1.5 1.5 0 0 0 1.5-1.5v-2A1.5 1.5 0 0 0 14.5 8h-2.306l1.78-5.342a.5.5 0 1 0-.948-.316L11.14 8H4.86zM14.5 9a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5z"/>
+  <path d="M8.5 5.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0"/>
+</svg>
+            Mesh
+         </a>
+         <div class="footer" id="timestamp">--</div>
+      </div>
+      <div class="content">
+         <div class="section-label">Unbound Recursive Resolver</div>
+         <div class="box-container">
+            <div class="small-box bg-blue">
+               <div class="inner">
+                  <p>Total queries</p>
+                  <h3 id="queries">0</h3>
+                  <div class="mini-stat" id="queries_change">+0/min</div>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+<path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-green">
+               <div class="inner">
+                  <p>Cache hits</p>
+                  <h3 id="hits">0</h3>
+                                  <div class="trend-indicator" id=""> </div>
+                  <div class="mini-stat" id="hit_trend">~</div>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+  <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-yellow">
+               <div class="inner">
+                  <p>Hit ratio</p>
+                  <h3 id="ratio">0%</h3>
+                  <div class="trend-indicator" id="trend">~</div>
+                  <div class="sparkline" id="spark_cache"></div>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M13.442 2.558a.625.625 0 0 1 0 .884l-10 10a.625.625 0 1 1-.884-.884l10-10a.625.625 0 0 1 .884 0M4.5 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m0 1a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5m7 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m0 1a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-red">
+               <div class="inner">
+                  <p>Cache misses</p>
+                  <h3 id="misses">0</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M4.54.146A.5.5 0 0 1 4.893 0h6.214a.5.5 0 0 1 .353.146l4.394 4.394a.5.5 0 0 1 .146.353v6.214a.5.5 0 0 1-.146.353l-4.394 4.394a.5.5 0 0 1-.353.146H4.893a.5.5 0 0 1-.353-.146L.146 11.46A.5.5 0 0 1 0 11.107V4.893a.5.5 0 0 1 .146-.353zM5.1 1 1 5.1v5.8L5.1 15h5.8l4.1-4.1V5.1L10.9 1z"/>
+  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/>
+</svg>
+               </div>
+            </div>
+         </div>
+         <div class="section-label">Pi-hole Filtering</div>
+         <div class="box-container">
+            <div class="small-box bg-purple">
+               <div class="inner">
+                  <p>Queries/min</p>
+                  <h3 id="qpm">0</h3>
+                  <div class="sparkline" id="spark_qpm"></div>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M8.5 5.6a.5.5 0 1 0-1 0v2.9h-3a.5.5 0 0 0 0 1H8a.5.5 0 0 0 .5-.5z"/>
+  <path d="M6.5 1A.5.5 0 0 1 7 .5h2a.5.5 0 0 1 0 1v.57c1.36.196 2.594.78 3.584 1.64l.012-.013.354-.354-.354-.353a.5.5 0 0 1 .707-.708l1.414 1.415a.5.5 0 1 1-.707.707l-.353-.354-.354.354-.013.012A7 7 0 1 1 7 2.071V1.5a.5.5 0 0 1-.5-.5M8 3a6 6 0 1 0 .001 12A6 6 0 0 0 8 3"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-teal">
+               <div class="inner">
+                  <p>Ads blocked</p>
+                  <h3 id="blocked">0</h3>
+                  <div class="mini-stat" id="blocked_rate">0/min</div>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M5.338 1.59a61 61 0 0 0-2.837.856.48.48 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.7 10.7 0 0 0 2.287 2.233c.346.244.652.42.893.533q.18.085.293.118a1 1 0 0 0 .101.025 1 1 0 0 0 .1-.025q.114-.034.294-.118c.24-.113.547-.29.893-.533a10.7 10.7 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.8 11.8 0 0 1-2.517 2.453 7 7 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7 7 0 0 1-1.048-.625 11.8 11.8 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 63 63 0 0 1 5.072.56"/>
+  <path d="M9.5 6.5a1.5 1.5 0 0 1-1 1.415l.385 1.99a.5.5 0 0 1-.491.595h-.788a.5.5 0 0 1-.49-.595l.384-1.99a1.5 1.5 0 1 1 2-1.415"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-blue">
+               <div class="inner">
+                  <p>Active Clients</p>
+                  <h3 id="clients">0</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path fill-rule="evenodd" d="M5 11.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5M3.854 2.146a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 1 1 .708-.708L2 3.293l1.146-1.147a.5.5 0 0 1 .708 0m0 4a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 1 1 .708-.708L2 7.293l1.146-1.147a.5.5 0 0 1 .708 0m0 4a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 0 1 .708-.708l.146.147 1.146-1.147a.5.5 0 0 1 .708 0"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-green">
+               <div class="inner">
+                  <p>Queries Today</p>
+                  <h3 id="queries_today">0</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M7 2.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5zM2 1a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm0 8a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2zm.854-3.646a.5.5 0 0 1-.708 0l-1-1a.5.5 0 1 1 .708-.708l.646.647 1.646-1.647a.5.5 0 1 1 .708.708zm0 8a.5.5 0 0 1-.708 0l-1-1a.5.5 0 0 1 .708-.708l.646.647 1.646-1.647a.5.5 0 0 1 .708.708zM7 10.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5zm0-5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m0 8a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5"/>
+</svg>
+               </div>
+            </div>
+         </div>
+         <div class="section-label">System Health & Status</div>
+         <div class="box-container">
+            <div class="small-box bg-yellow">
+               <div class="inner">
+                  <p>Pi-hole Block Rate</p>
+                  <h3 id="percent_blocked">0%</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M5.338 1.59a61 61 0 0 0-2.837.856.48.48 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.7 10.7 0 0 0 2.287 2.233c.346.244.652.42.893.533q.18.085.293.118a1 1 0 0 0 .101.025 1 1 0 0 0 .1-.025q.114-.034.294-.118c.24-.113.547-.29.893-.533a10.7 10.7 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.8 11.8 0 0 1-2.517 2.453 7 7 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7 7 0 0 1-1.048-.625 11.8 11.8 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 63 63 0 0 1 5.072.56"/>
+  <path d="M7.001 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0M7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.553.553 0 0 1-1.1 0z"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-orange">
+               <div class="inner">
+                  <p>Log Storage (ZRAM)</p>
+                  <h3 id="log_storage">0%</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+<path d="M6.5 7.5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v.938l.4 1.599a1 1 0 0 1-.416 1.074l-.93.62a1 1 0 0 1-1.109 0l-.93-.62a1 1 0 0 1-.415-1.074l.4-1.599zm2 0h-1v.938a1 1 0 0 1-.03.243l-.4 1.598.93.62.93-.62-.4-1.598a1 1 0 0 1-.03-.243z"/>
+  <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm5.5-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9v1H8v1h1v1H8v1h1v1H7.5V5h-1V4h1V3h-1V2h1z"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-maroon">
+               <div class="inner">
+                  <p>CPU Usage</p>
+                  <h3 id="cpu">0%</h3>
+                  <div class="mini-stat" id="load_avg">0.0</div>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M5 0a.5.5 0 0 1 .5.5V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2A2.5 2.5 0 0 1 14 4.5h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14a2.5 2.5 0 0 1-2.5 2.5v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14A2.5 2.5 0 0 1 2 11.5H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2A2.5 2.5 0 0 1 4.5 2V.5A.5.5 0 0 1 5 0m-.5 3A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 11.5 3zM5 6.5A1.5 1.5 0 0 1 6.5 5h3A1.5 1.5 0 0 1 11 6.5v3A1.5 1.5 0 0 1 9.5 11h-3A1.5 1.5 0 0 1 5 9.5zM6.5 6a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5z"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-teal">
+               <div class="inner">
+                  <p>Temperature</p>
+                  <h3 id="temp">0°C</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M9.5 12.5a1.5 1.5 0 1 1-2-1.415V6.5a.5.5 0 0 1 1 0v4.585a1.5 1.5 0 0 1 1 1.415"/>
+  <path d="M5.5 2.5a2.5 2.5 0 0 1 5 0v7.55a3.5 3.5 0 1 1-5 0zM8 1a1.5 1.5 0 0 0-1.5 1.5v7.987l-.167.15a2.5 2.5 0 1 0 3.333 0l-.166-.15V2.5A1.5 1.5 0 0 0 8 1"/>
+</svg>
+               </div>
+            </div>
+         </div>
+         <div class="box-container">
+            <div class="small-box bg-blue">
+               <div class="inner">
+                  <p>Memory Usage</p>
+                  <h3 id="ram">0%</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+<path fill-rule="evenodd" d="M0 0h1v15h15v1H0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-green">
+               <div class="inner">
+                  <p>Memory MB</p>
+                  <h3 id="memory_mb">0MB</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+                     <path d="M1 3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h4.586a1 1 0 0 0 .707-.293l.353-.353a.5.5 0 0 1 .708 0l.353.353a1 1 0 0 0 .707.293H15a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm.5 1h3a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-4a.5.5 0 0 1 .5-.5m5 0h3a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-4a.5.5 0 0 1 .5-.5m4.5.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5zM2 10v2H1v-2zm2 0v2H3v-2zm2 0v2H5v-2zm3 0v2H8v-2zm2 0v2h-1v-2zm2 0v2h-1v-2zm2 0v2h-1v-2z"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-yellow">
+               <div class="inner">
+                  <p>Disk Space</p>
+                  <h3 id="disk">0%</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+<path d="M6.25 3.5a.75.75 0 0 0-1.5 0v2a.75.75 0 0 0 1.5 0zm2 0a.75.75 0 0 0-1.5 0v2a.75.75 0 0 0 1.5 0zm2 0a.75.75 0 0 0-1.5 0v2a.75.75 0 0 0 1.5 0zm2 0a.75.75 0 0 0-1.5 0v2a.75.75 0 0 0 1.5 0z"/>
+  <path fill-rule="evenodd" d="M5.914 0H12.5A1.5 1.5 0 0 1 14 1.5v13a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 14.5V3.914c0-.398.158-.78.44-1.06L4.853.439A1.5 1.5 0 0 1 5.914 0M13 1.5a.5.5 0 0 0-.5-.5H5.914a.5.5 0 0 0-.353.146L3.146 3.561A.5.5 0 0 0 3 3.914V14.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5z"/>
+</svg>
+               </div>
+            </div>
+            <div class="small-box bg-purple">
+               <div class="inner">
+                  <p>System Uptime</p>
+                  <h3 id="uptime">0d 0h</h3>
+               </div>
+               <div class="icon">
+                  <svg viewBox="0 0 16 16">
+ <path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022zm2.004.45a7 7 0 0 0-.985-.299l.219-.976q.576.129 1.126.342zm1.37.71a7 7 0 0 0-.439-.27l.493-.87a8 8 0 0 1 .979.654l-.615.789a7 7 0 0 0-.418-.302zm1.834 1.79a7 7 0 0 0-.653-.796l.724-.69q.406.429.747.91zm.744 1.352a7 7 0 0 0-.214-.468l.893-.45a8 8 0 0 1 .45 1.088l-.95.313a7 7 0 0 0-.179-.483m.53 2.507a7 7 0 0 0-.1-1.025l.985-.17q.1.58.116 1.17zm-.131 1.538q.05-.254.081-.51l.993.123a8 8 0 0 1-.23 1.155l-.964-.267q.069-.247.12-.501m-.952 2.379q.276-.436.486-.908l.914.405q-.24.54-.555 1.038zm-.964 1.205q.183-.183.35-.378l.758.653a8 8 0 0 1-.401.432z"/>
+  <path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0z"/>
+  <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5"/>
+</svg>
+               </div>
+            </div>
+         </div>
+      </div>
+<script>
+function renderSparkline(elementId, dataArray) {
+    const container = document.getElementById(elementId);
+    if (!container || !dataArray || dataArray.length === 0) return;
 
-        body { margin: 0; font-family: 'Source Sans Pro', 'Helvetica Neue', Helvetica, Arial, sans-serif; background: var(--bg-body); color: var(--text-link); font-size: 14px; }
-        /* Header */
-        .header { height: 50px; display: flex; align-items: center; padding: 0 15px; background: var(--bg-header); position: fixed; width: 100%; top: 0; z-index: 1000; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
-        .header-title { font-size: 20px; color: var(--text-bright); }
-        /* Sidebar */
-        .sidebar { position: fixed; top: 50px; left: 0; width: 230px; height: 100%; background: var(--bg-sidebar); padding-top: 0px; }
-        .sidebar h2 { font-size: 12px; color: var(--text-subheader); background: var(--bg-subheader); padding: 12px 15px 12px 10px; margin: 0; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
-        .sidebar a { display: flex; align-items: center; padding: 12px 15px; color: var(--text-link); text-decoration: none; transition: 0.2s; border-left: 3px solid transparent; }
-        .sidebar a:hover { background: var(--bg-hover); color: var(--text-bright); border-left-color: #3c8dbc; }
-        .sidebar a svg { margin-right: 12px; width: 16px; height: 16px; fill: currentColor; }
-        /* Main Content */
-        .content { margin-left: 230px; padding: 70px 20px 20px 20px; }
-        /* Stat Boxes */
-        .box-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 25px; }
-        .small-box { border-radius: 3px; position: relative; display: block; padding: 20px; color: #fff; box-shadow: 0 1px 1px rgba(0,0,0,0.1); overflow: hidden; height: 80px; }
-        .small-box .inner { position: relative; z-index: 2; }
-        .small-box h3 { font-size: 32px; font-weight: 700; margin: 5px 0 0 0; }
-        .small-box p { font-size: 14px; margin: 0; font-weight: 400; opacity: 1; }
-        /* Icons */
-        .small-box .icon { position: absolute; top: 10px; right: 10px; z-index: 1; transition: all 0.3s linear; }
-        .small-box .icon svg { width: 80px; height: 80px; }
-        .small-box:hover .icon { transform: scale(1.1); }
-        .bg-blue { background-color: var(--box-blue); }
-        .bg-blue .icon svg { fill: var(--icon-blue); }
-        .bg-green { background-color: var(--box-green); }
-        .bg-green .icon svg { fill: var(--icon-green); }
-        .bg-yellow { background-color: var(--box-yellow); }
-        .bg-yellow .icon svg { fill: var(--icon-yellow); }
-        .bg-red { background-color: var(--box-red); }
-        .bg-red .icon svg { fill: var(--icon-red); }
-        /* Cards */
-        .card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .card { background: var(--bg-sidebar); border: 1px solid var(--border-card); border-top: 3px solid #d2d6de; border-radius: 3px; padding: 15px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
-        .card h3 { margin: 0 0 15px 0; font-size: 18px; color: var(--text-bright); border-bottom: 1px solid var(--border-sidebar); padding-bottom: 10px; }
-        table { width: 100%; border-collapse: collapse; }
-        td { padding: 10px 5px; border-bottom: 1px solid var(--border-sidebar); font-size: 14px; color: var(--text-link); }
-        td:first-child { font-weight: 600; width: 50%; color: var(--text-label); }
-        .hist-container { display: flex; align-items: flex-end; height: 26px; background: #1a1e22; gap: 2px; padding: 2px; border-radius: 2px; }
-        .hist-bar { flex: 1; background: var(--box-green); }
-        .footer { margin-top: 30px; font-size: 12px; color: #666; padding-top: 10px; border-top: 1px solid var(--border-sidebar); }
-    </style>
-</head>
-<body>
-<div class="header">
-    <div class="header-title">un<b>bound</b></div>
-</div>
-<div class="sidebar">
-    <h2>LAN Services</h2>
-    <a href="http://pi.hole/admin"><svg viewBox="0 0 24 24"><path d="M3,13h8V3H3V13z M3,21h8v-6H3V21z M13,21h8V11h-8V21z M13,3v6h8V3H13z"/></svg>Pi-hole Admin</a>
-    <h2>Server</h2>
-    <a href="http://ser.ver/"><svg viewBox="0 0 24 24"><path d="M12,9c-1.66,0-3,1.34-3,3s1.34,3,3,3s3-1.34,3-3S13.66,9,12,9z M12,19c-4,0-7.66-2.53-9-6c1.34-3.47,5-6,9-6s7.66,2.53,9,6"/></svg>LINK1</a>
-    <a href="http://link2.ser.ver/"><svg viewBox="0 0 24 24"><path d="M21,3H3C1.9,3,1,3.9,1,5v12c0,1.1,0.9,2,2,2h5v2h8v-2h5c1.1,0,2-0.9,2-2V5C23,3.9,22.1,3,21,3z"/></svg>LINK2</a>
-    <a href="http://link3.ser.ver/"><svg viewBox="0 0 24 24"><path d="M18,3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3H18z"/></svg>LINK3</a>
-    <a href="http://link4.ser.ver/"><svg viewBox="0 0 24 24"><path d="M19.35,10.04C18.67,6.59 15.64,4 12,4C9.11,4 6.6,5.64 5.35,8.04C2.34,8.36 0,10.91 0,14A6,6 0 0,0 6,20H19A5,5 0 0,0 24,15C24,12.36 21.95,10.22 19.35,10.04M19,18H6A4,4 0 0,1 2,14C2,11.97 3.64,10.33 5.6,10.08L7.13,9.89L7.55,8.42C8.36,5.56 10.36,6 12,6C14.63,6 16.89,7.86 17.55,10.43L18.06,12.39L20.08,12.5C21.26,12.61 22,13.72 22,15A3,3 0 0,1 19,18M13,10H11V13H8L12,17L16,13H13V10Z"/></svg>LINK4</a>
-    <a href="http://link5.ser.ver/web"><svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M10,16.5V7.5L16,12L10,16.5Z"/></svg>LINK5</a>
-    <a href="http://link6.ser.ver/"><svg viewBox="0 0 24 24"><path d="M12,2L2,7V17L12,22L22,17V7L12,2M12,4.31L19,7.81V16.19L12,19.69L5,16.19V7.81L12,4.31Z"/></svg>LINK6</a>
-    <h2>Gateway</h2>
-    <a href="http://192.168.0.1/"><svg viewBox="0 0 24 24"><path d="M5,11V13H19V11H5M3,3H21A2,2 0 0,1 23,5V19A2,2 0 0,1 21,21H3A2,2 0 0,1 1,19V5A2,2 0 0,1 3,3M3,15V19H21V15H3M3,5V9H21V5H3Z"/></svg>Router-Gateway</a>
-    <a href="http://192.168.1.1/"><svg viewBox="0 0 24 24"><path d="M11,18H13V16H11V18M12,2A10,10,0,0,0,2,12A10,10,0,0,0,12,22A10,10,0,0,0,22,12A10,10,0,0,0,12,2"/></svg>Mesh-node</a>
-</div>
-<div class="content">
-    <div class="box-container">
-        <div class="small-box bg-blue">
-            <div class="inner">
-                <p>Total queries</p>
-                <h3>{{ unbound.total }}</h3>
-            </div>
-            <div class="icon">
-                <svg viewBox="0 0 24 24"><path d="M15.5,14L20.5,19L19,20.5L14,15.5V14.71L13.73,14.43C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.43,13.73L14.71,14H15.5M9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14M6,7H13V9H6V7M6,10H11V12H6V10Z"/></svg>
-            </div>
-        </div>
-        <div class="small-box bg-green">
-            <div class="inner">
-                <p>Cache hits</p>
-                <h3>{{ unbound.hits }}</h3>
-            </div>
-            <div class="icon">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-            </div>
-        </div>
-        <div class="small-box bg-yellow">
-            <div class="inner">
-                <p>Hit ratio</p>
-                <h3>{{ unbound.ratio }}</h3>
-            </div>
-            <div class="icon">
-                <svg viewBox="0 0 24 24"><path d="M11,2V22C5.9,21.5 2,17.2 2,12C2,6.8 5.9,2.5 11,2M13,2V11H22C21.5,6.2 17.8,2.5 13,2M13,13V22C17.7,21.5 21.5,17.8 22,13H13Z"/></svg>
-            </div>
-        </div>
-        <div class="small-box bg-red">
-            <div class="inner">
-                <p>Cache misses</p>
-                <h3>{{ unbound.misses }}</h3>
-            </div>
-            <div class="icon">
-                <svg viewBox="0 0 24 24"><path d="M12,2C6.47,2,2,6.47,2,12s4.47,10,10,10s10-4.47,10-10S17.53,2,12,2z M17,15.59L15.59,17L12,13.41L8.41,17L7,15.59 L10.59,12L7,8.41L8.41,7L12,10.59L15.59,7L17,8.41L13.41,12L17,15.59z"/></svg>
-            </div>
-        </div>
-    </div>
-    <div class="card-row">
-        <div class="card">
-            <h3>Unbound Details</h3>
-            <table>
-                {% if unbound.Error %}<tr><td colspan="2" style="color:var(--box-red);">⚠️ {{ unbound.Error }}</td></tr>{% endif %}
-                <tr><td>Cache Memory</td><td>{{ unbound.memory }}</td></tr>
-                <tr><td>Unbound Uptime</td><td>{{ unbound.uptime }}</td></tr>
-                <tr>
-                    <td>Hit History</td>
-                    <td>
-                        <div class="hist-container">
-                            {% for val in history %}<div class="hist-bar" style="height: {{ val }}%;"></div>{% endfor %}
-                        </div>
-                    </td>
-                </tr>
-            </table>
-        </div>
-        <div class="card">
-            <h3>System Health</h3>
-            <table>
-                {% for k, v in system.items() %}
-                <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
-                {% endfor %}
-            </table>
-        </div>
-    </div>
-    <div class="footer">Last Update: {{ timestamp }}</div>
-</div>
-</body>
+    const max = Math.max(...dataArray, 1);
+    const min = Math.min(...dataArray, 0);
+    const range = max - min || 1;
+
+    container.innerHTML = '';
+
+    dataArray.forEach(value => {
+        const span = document.createElement('span');
+        const heightPercent = ((value - min) / range) * 100;
+        span.style.height = Math.max(heightPercent, 2) + '%';
+        container.appendChild(span);
+    });
+}
+
+function updateDashboard() {
+    fetch('/api/data')
+        .then(response => response.json())
+        .then(data => {
+
+            // Unbound
+            document.getElementById("queries").textContent = data.unbound.total;
+            document.getElementById("queries_change").textContent = `${data.qpm}/min`;
+            document.getElementById("hits").textContent = data.unbound.hits;
+            document.getElementById("hit_trend").textContent = data.hit_trend || "~";
+            document.getElementById("misses").textContent = data.unbound.misses;
+            document.getElementById("ratio").textContent = data.unbound.ratio;
+            document.getElementById("qpm").textContent = data.qpm;
+
+            const trend = document.getElementById("trend");
+            trend.textContent = data.cache_trend;
+            trend.style.color = data.trend_color;
+
+            // Pi-hole
+            document.getElementById("blocked").textContent = data.pihole.blocked_today;
+            document.getElementById("blocked_rate").textContent = data.blocked_rate || "0/min";
+            document.getElementById("clients").textContent = data.pihole.unique_clients;
+            document.getElementById("queries_today").textContent = data.pihole.queries_today;
+            document.getElementById("percent_blocked").textContent = data.pihole.percent_blocked;
+
+            // API Status
+            const apiDot = document.getElementById("api_status_dot");
+            const apiText = document.getElementById("api_status_text");
+
+            if (data.pihole.blocked_today !== "0") {
+                apiDot.setAttribute("fill", "green");
+                apiText.textContent = "Connected";
+            } else {
+                apiDot.setAttribute("fill", "red");
+                apiText.textContent = "Offline";
+            }
+
+            // System
+            document.getElementById("cpu").textContent = data.system["CPU Usage"];
+            document.getElementById("load_avg").textContent = data.system["Load Avg"] || "N/A";
+            document.getElementById("temp").textContent = data.system["Temp"];
+            document.getElementById("ram").textContent = data.system["Memory Usage"];
+            document.getElementById("disk").textContent = data.system["Disk Space"];
+            document.getElementById("uptime").textContent = data.system["System Uptime"];
+            document.getElementById("memory_mb").textContent = data.system["Memory MB"];
+            document.getElementById("log_storage").textContent = data.system["Log Storage"];
+
+            // Sparklines
+            if (data.sparklines) {
+                renderSparkline('spark_qpm', data.sparklines.qpm);
+                renderSparkline('spark_cache', data.sparklines.cache);
+            }
+
+            // Footer
+            document.getElementById("timestamp").textContent = data.timestamp;
+
+        })
+        .catch(err => console.error("API error:", err));
+}
+
+// First load
+updateDashboard();
+
+// Every 5 seconds
+setInterval(updateDashboard, 5000);
+</script>
+   </body>
 </html>

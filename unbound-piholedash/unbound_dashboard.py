@@ -1,139 +1,342 @@
-from flask import Flask, request, abort, render_template
+import time
 import subprocess
 import psutil
-import datetime
 import socket
 import os
+import threading
+import requests
+import copy
+import logging
+from flask import Flask, render_template, jsonify
+from collections import deque
 
-# add your LAN range but leave the last EG 192.168.1. or 192.168.188.
-LAN_PREFIX = "192.168.XXX."
-REFRESH_INTERVAL = 5
-HISTORY_LEN = 20
+# OLED Imports (UNCHANGED)
+try:
+    from luma.core.interface.serial import i2c
+    from luma.oled.device import sh1106
+    from luma.core.render import canvas
+    from PIL import ImageFont
+    import PIL
+    OLED_AVAILABLE = True
+except ImportError:
+    OLED_AVAILABLE = False
 
-app = Flask(__name__)
-cache_ratio_history = []
 psutil.cpu_percent(interval=None)
 
-def update_cache_history(ratio):
-    cache_ratio_history.append(ratio)
-    if len(cache_ratio_history) > HISTORY_LEN:
-        cache_ratio_history.pop(0)
+# Configuration
+DATA_POLL_INTERVAL = 10
+PIHOLE_API_URL = "http://PIHOLE API KEY:8080/api"
+PIHOLE_API_TOKEN = "PiHOLE API KEY HERE"
+BOOT_TIME = psutil.boot_time()
 
-@app.before_request
-def limit_remote_addr():
-    client_ip = request.remote_addr
-    # Allow localhost and LAN devices
-    if client_ip != "127.0.0.1" and not client_ip.startswith(LAN_PREFIX):
-        abort(403)
+LOG_IS_ZRAM = any(
+    part.mountpoint == '/var/log' and 'zram' in part.device
+    for part in psutil.disk_partitions()
+)
 
-def get_pihole_status():
-    """Checks if Pi-hole FTL service is active using systemctl"""
+app = Flask(__name__)
+
+# State
+class SystemState:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.last_query_count = 0
+        self.last_query_time = time.time()
+        self.first_run = True
+        self.history_qpm = deque([0.0]*20, maxlen=20)
+        self.history_cache = deque([0.0]*20, maxlen=20)
+        self.archive_cache = deque(maxlen=1000)
+        self.data = {
+            "unbound": {
+                "hits": "0",
+                "misses": "0",
+                "ratio": "0%",
+                "total": 0,
+                "ratio_value": 0.0
+            },
+            "pihole": {
+                "blocked_today": "0",
+                "percent_blocked": "0%",
+                "unique_clients": "0",
+                "queries_today": "0"
+            },
+            "system": {
+                "Pi-hole Status": "Unknown",
+                "Log Storage": "Disk",
+                "CPU Usage": "0%",
+                "Memory Usage": "0%",
+                "Temp": "0°C",
+                "System Uptime": "0d 0h",
+                "Memory MB": "0MB",
+                "Disk Space": "0%",
+                "Load Avg": "N/A"
+            },
+            "qpm": 0,
+            "blocked_rate": "0/min"
+        }
+
+state = SystemState()
+
+# Pi-hole
+def get_pihole_api_stats():
+    data = state.data["pihole"]
     try:
-        # Check if the service is 'active'
-        cmd = ["systemctl", "is-active", "pihole-FTL"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1)
-
-        if result.stdout.strip() == "active":
-            # Optional: Check if blocking is actually enabled
-            # Pi-hole stores status in its own DB/config, but 'active'
-            # usually means it's working.
-            return "Active (Enabled)"
-        else:
-            return "⚠️ Stopped"
-    except:
-        return "Unknown"
-
-def get_unbound_stats():
-    data = {
-        "hits": "0", "misses": "0", "ratio": "0%", "total": "0",
-        "memory": "0 MB", "uptime": "0h 0m", "ratio_value": 0, "Error": None
-    }
-    try: 
-        #make this work add in visudo: pi ALL=(ALL) NOPASSWD: /usr/sbin/unbound-control
-        cmd = ["sudo", "/usr/sbin/unbound-control", "-c", "/etc/unbound/unbound.conf.d/pi-hole.conf", "stats_noreset"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
-        if result.returncode != 0:
-            data["Error"] = "Sudo permission denied"
-            return data
-
-        stats = {}
-        for line in result.stdout.strip().splitlines():
-            if "=" in line:
-                k, v = line.split("=", 1)
-                stats[k.strip()] = v.strip()
-
-        hits = int(stats.get("total.num.cachehits", 0))
-        misses = int(stats.get("total.num.cachemiss", 0))
-        total = hits + misses
-        ratio = round((hits / total) * 100, 1) if total > 0 else 0
-        uptime_sec = int(float(stats.get("time.up", 0)))
-        mem_mb = (int(stats.get("mem.cache.rrset", 0)) + int(stats.get("mem.cache.message", 0))) // 1024 // 1024
-
-        data.update({
-            "hits": f"{hits:,}", "misses": f"{misses:,}", "ratio": f"{ratio}%",
-            "total": f"{total:,}", "memory": f"{mem_mb} MB",
-            "uptime": f"{uptime_sec//3600}h {(uptime_sec%3600)//60}m", "ratio_value": ratio
-        })
+        headers = {
+            'Authorization': f'Bearer {PIHOLE_API_TOKEN}',
+            'Accept': 'application/json'
+        }
+        r = requests.get(
+            f"{PIHOLE_API_URL}/stats/summary",
+            headers=headers,
+            timeout=2
+        )
+        if r.status_code == 200:
+            api = r.json()
+            q = api.get('queries', {})
+            data = {
+                "blocked_today": f"{q.get('blocked', 0):,}",
+                "percent_blocked": f"{q.get('percent_blocked', 0):.1f}%",
+                "unique_clients": str(api.get('clients', {}).get('active', 0)),
+                "queries_today": f"{q.get('total', 0):,}"
+            }
     except Exception as e:
-        data["Error"] = f"Internal Error: {str(e)}"
+        logging.warning(f"Pi-hole API error: {e}")
     return data
 
+
+# Unbound (fast parsing)         #make this work add in visudo: piusername ALL=(ALL) NOPASSWD: /usr/sbin/unbound-control
+def get_unbound_stats():
+    res = state.data["unbound"]
+    try:
+        result = subprocess.run(
+            ["/usr/sbin/unbound-control", "stats_noreset"],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+
+        if result.returncode != 0:
+            return res
+
+        hits = 0
+        misses = 0
+
+        for line in result.stdout.splitlines():
+            if line.startswith("total.num.cachehits="):
+                hits = int(line.split("=")[1])
+            elif line.startswith("total.num.cachemiss="):
+                misses = int(line.split("=")[1])
+
+        total = hits + misses
+        ratio_val = (hits / total) * 100 if total > 0 else 0.0
+
+        res = {
+            "hits": f"{hits:,}",
+            "misses": f"{misses:,}",
+            "ratio": f"{ratio_val:.1f}%",
+            "total": total,
+            "ratio_value": ratio_val
+        }
+
+    except Exception as e:
+        logging.warning(f"Unbound error: {e}")
+
+    return res
+
+# System
 def get_system_stats():
     mem = psutil.virtual_memory()
-    disk = psutil.disk_usage('/')
-    cpu = psutil.cpu_percent(interval=None)
-    # 2. Temperature
+
+    # Load average
     try:
-        temp = subprocess.check_output(["vcgencmd", "measure_temp"]).decode().split("=")[1].replace("'C\n", "")
-    except: temp = "N/A"
-    # 3. Uptime
-    uptime = datetime.datetime.now() - datetime.datetime.fromtimestamp(psutil.boot_time())
-    # 4. Load Averages (Tuple: 1 min, 5 min, 15 min)
-    try:
-        load1, load5, load15 = os.getloadavg()
+        load_avg = os.getloadavg()[0]
+        load_display = f"Load {load_avg:.2f}"
     except:
-        load1, load5, load15 = (0, 0, 0)
-    # 5. Power/Throttling Health
-    # 0x50005 means under-voltage occurring. 0x0 means fine.
-    throttle_status = "OK"
+        load_display = "N/A"
+
+    # ZRAM detection
+    if LOG_IS_ZRAM:
+        try:
+            usage = os.statvfs('/var/log')
+            percent = int((1 - usage.f_bavail / usage.f_blocks) * 100)
+            log_status = f"ZRAM {percent}%"
+        except:
+            log_status = "ZRAM"
+    else:
+        log_status = "Disk"
+
+    # Temperature
     try:
-        out = subprocess.check_output(["vcgencmd", "get_throttled"]).decode().strip()
-        code = int(out.split("=")[1], 16)
-        if code != 0:
-            # Decode common bits
-            reasons = []
-            if code & 0x1: reasons.append("Under-voltage")
-            if code & 0x2: reasons.append("Freq Capped")
-            if code & 0x4: reasons.append("Throttled")
-            if code & 0x10000: reasons.append("Was Under-voltage")
-            throttle_status = "⚠️ " + ", ".join(reasons)
+        with open("/sys/class/thermal/thermal_zone0/temp") as f:
+            temp = str(int(f.read()) // 1000)
     except:
-        throttle_status = "Unknown"
+        temp = "N/A"
+
+    uptime_seconds = int(time.time() - BOOT_TIME)
+    uptime_days = uptime_seconds // 86400
+    uptime_hours = (uptime_seconds % 86400) // 3600
+
+    pihole_active = os.path.exists("/run/pihole-FTL.pid")
+
+    disk = os.statvfs('/')
+    disk_percent = int((1 - disk.f_bavail / disk.f_blocks) * 100)
 
     return {
-        "Pi-hole Status": get_pihole_status(),
-        "CPU Load (1m/5m)": f"{load1:.2f} / {load5:.2f}",
-        "CPU Usage": f"{cpu}%",
-        "Power Health": throttle_status,
-        "Memory Usage": f"{mem.percent}% ({mem.used//1024//1024}MB)",
-        "Disk Space": f"{disk.percent}%",
+        "Pi-hole Status": "Active" if pihole_active else "Stopped",
+        "Log Storage": log_status,
+        "CPU Usage": f"{psutil.cpu_percent(interval=0)}%",
+        "Memory Usage": f"{mem.percent}%",
+        "Memory MB": f"{mem.used // 1024 // 1024}MB",
+        "Disk Space": f"{disk_percent}%",
         "Temp": f"{temp}°C",
-        "System Uptime": f"{uptime.days}d {uptime.seconds//3600}h {(uptime.seconds%3600)//60}m"
+        "System Uptime": f"{uptime_days}d {uptime_hours}h",
+        "Load Avg": load_display
     }
 
-@app.route("/")
+# Background Updater
+def data_updater():
+    while True:
+        start = time.time()
+        try:
+            unbound = get_unbound_stats()
+            pihole = get_pihole_api_stats()
+            sys_stat = get_system_stats()
+            curr_time = time.time()
+
+            with state.lock:
+                if state.first_run:
+                    qpm = 0.0
+                    state.first_run = False
+                else:
+                    delta_time = max(curr_time - state.last_query_time, 0.001)
+                    delta_queries = max(unbound["total"] - state.last_query_count, 0)
+                    qpm = (delta_queries / delta_time) * 60
+
+                state.last_query_count = unbound["total"]
+                state.last_query_time = curr_time
+
+                state.history_qpm.append(qpm)
+                state.history_cache.append(unbound["ratio_value"])
+
+                # Calculate blocked per minute
+                try:
+                    blocked = int(pihole["blocked_today"].replace(",", ""))
+                    uptime_mins = (curr_time - BOOT_TIME) / 60
+                    blocked_per_min = blocked / uptime_mins if uptime_mins > 0 else 0
+                    blocked_rate = f"{blocked_per_min:.1f}/min"
+                except:
+                    blocked_rate = "0/min"
+
+                state.data["unbound"] = unbound
+                state.data["pihole"] = pihole
+                state.data["system"] = sys_stat
+                state.data["qpm"] = int(qpm)
+                state.data["blocked_rate"] = blocked_rate
+
+        except Exception as e:
+            logging.warning(f"Updater error: {e}")
+
+        time.sleep(max(DATA_POLL_INTERVAL - (time.time() - start), 0))
+
+# OLED WORKER
+def oled_worker():
+    if not OLED_AVAILABLE:
+        return
+
+    serial = i2c(port=1, address=0x3C)
+    device = sh1106(serial, rotate=2)
+
+    try:
+        font_path = os.path.join(os.path.dirname(PIL.__file__), "fonts", "cp437_8x8.pil")
+        my_font = ImageFont.load(font_path)
+    except:
+        my_font = ImageFont.load_default()
+
+    while True:
+        with state.lock:
+            d = copy.deepcopy(state.data)
+
+        u = d["unbound"]
+        s = d["system"]
+
+        ph_label = "UP" if "Active" in s["Pi-hole Status"] else "X"
+        zram_val = s["Log Storage"].split()[-1] if " " in s["Log Storage"] else ""
+
+        with canvas(device) as draw:
+            bbox = my_font.getbbox("A")
+            lh = (bbox[3] - bbox[1]) + 4
+            y = 0
+
+            draw.text((0, y), f"Quer {u['total']}  Hits {u['hits']}", font=my_font, fill="white"); y += lh
+            draw.text((0, y), f"Ratio {u['ratio']}  Miss {u['misses']}", font=my_font, fill="white"); y += lh
+            draw.line((0, y, 128, y), fill="white"); y += 2
+            draw.text((0, y), f"CPU {s['CPU Usage']}  TMP {s['Temp']}", font=my_font, fill="white"); y += lh
+            draw.text((0, y), f"RAM {s['Memory Usage']}  ZRM {zram_val}", font=my_font, fill="white"); y += lh
+            draw.line((0, y, 128, y), fill="white"); y += 2
+            draw.text((0, y), f"PiHole {ph_label}  Uptime {s['System Uptime'].split(' ')[0]}", font=my_font, fill="white")
+
+        time.sleep(15)
+
+# Routes
+@app.route('/')
 def dashboard():
-    unbound = get_unbound_stats()
-    update_cache_history(unbound.get("ratio_value", 0))
-    system = get_system_stats()
+    return render_template(
+        "dashboard.html",
+        hostname=socket.gethostname(),
+        timestamp=time.strftime("%Y-%m-%d %H:%M:%S")
+    )
 
-    return render_template("dashboard.html",
-                           unbound=unbound,
-                           system=system,
-                           history=cache_ratio_history,
-                           refresh=REFRESH_INTERVAL,
-                           hostname=socket.gethostname(),
-                           timestamp=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+@app.route('/api/data')
+def api_data():
+    with state.lock:
+        response_data = copy.deepcopy(state.data)
 
+        # Add sparkline data
+        response_data['sparklines'] = {
+            'qpm': list(state.history_qpm),
+            'cache': list(state.history_cache)
+        }
+
+        # Add trend calculation for cache ratio
+        if len(state.history_cache) >= 2:
+            recent_avg = sum(list(state.history_cache)[-5:]) / 5
+            older_avg = sum(list(state.history_cache)[:5]) / 5 if len(state.history_cache) >= 10 else recent_avg
+            trend_diff = recent_avg - older_avg
+
+            if trend_diff > 1:
+                response_data['cache_trend'] = f"↑{trend_diff:.1f}%"
+                response_data['trend_color'] = "#4ade80"
+            elif trend_diff < -1:
+                response_data['cache_trend'] = f"↓{abs(trend_diff):.1f}%"
+                response_data['trend_color'] = "#f87171"
+            else:
+                response_data['cache_trend'] = "~"
+                response_data['trend_color'] = "white"
+        else:
+            response_data['cache_trend'] = "~"
+            response_data['trend_color'] = "white"
+
+        # Add hit trend indicator
+        if len(state.history_qpm) >= 2:
+            recent_qpm = sum(list(state.history_qpm)[-3:]) / 3
+            if recent_qpm > 10:
+                response_data['hit_trend'] = "↑ High"
+            elif recent_qpm > 5:
+                response_data['hit_trend'] = "~ Med"
+            else:
+                response_data['hit_trend'] = "↓ Low"
+        else:
+            response_data['hit_trend'] = "~"
+
+        # Add timestamp
+        response_data['timestamp'] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        return jsonify(response_data)
+
+
+# Main
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    threading.Thread(target=data_updater, daemon=True).start()
+    if OLED_AVAILABLE:
+        threading.Thread(target=oled_worker, daemon=True).start()
+    app.run(host="0.0.0.0", port=5000, threaded=True)

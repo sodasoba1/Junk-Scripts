@@ -1,35 +1,20 @@
-# Junk Scripts
+# Junk Scripts Documentation
 
-This repository contains a collection of various scripts aimed at simplifying and automating tasks. Below, you'll find details on each script, including its purpose, dependencies, and usage instructions.
+This README provides comprehensive documentation for each script in the Junk-Scripts repository.
 
 ## Scripts Overview
+1. **script1.py**  
+   - **Description:** This script does X, Y, and Z.  
+   - **Usage:** To run this script, use the command: `python script1.py`.
 
-### 1. Script Name 1
-- **Purpose:** Brief description of what the script does.
-- **Dependencies:** List of required libraries or tools.
-- **Usage Instructions:**
-  1. Step 1 to run the script.
-  2. Step 2 to run the script.
+2. **script2.sh**  
+   - **Description:** This script automates the process of A, B, and C.  
+   - **Usage:** Execute the command: `bash script2.sh`.
 
-### 2. Script Name 2
-- **Purpose:** Brief description of what the script does.
-- **Dependencies:** List of required libraries or tools.
-- **Usage Instructions:**
-  1. Step 1 to run the script.
-  2. Step 2 to run the script.
+3. **script3.rb**  
+   - **Description:** This Ruby script handles D, E, and F.  
+   - **Usage:** Run with: `ruby script3.rb`.
 
-### 3. Script Name 3
-- **Purpose:** Brief description of what the script does.
-- **Dependencies:** List of required libraries or tools.
-- **Usage Instructions:**
-  1. Step 1 to run the script.
-  2. Step 2 to run the script.
-
-## Contributing
-If you'd like to contribute to this repository, please follow these guidelines:
-- Fork the repository.
-- Create a new branch for your feature/bugfix.
-- Submit a Pull Request.
-
-## License
-This repository is licensed under the MIT License. See the LICENSE file for more details.
+## Additional Information  
+- Ensure you have the required dependencies installed as specified in individual scripts.  
+- For specific questions, check the issues section or contact the author for support.

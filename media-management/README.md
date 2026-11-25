@@ -20,7 +20,7 @@ Tools for auditing media streams, safely remuxing selected audio/subtitle tracks
 - Write access to this script directory for the audit and report.
 - Enough free space in `~/remux_buffer` for a staged input and remuxed output. The cleaner checks available space before invoking FFmpeg.
 
-The scanner and counter default to `/media`. Make sure the intended media volume is mounted there before scanning; the scripts verify that the directory exists, but cannot determine whether it is the expected mounted volume.
+The scanner and counter default to `/media`. Make sure the intended media volume is mounted there before scanning; the scripts verify that the directory exists, but cannot determine whether it is the expected mounted volume. A new scan marks any previous audit `STALE` before starting, so a failed or interrupted scan cannot leave an older audit available for accidental application.
 
 ## Workflow
 
@@ -91,6 +91,7 @@ Audit states:
 | State | Meaning |
 |---|---|
 | `UNPROCESSED` | Fresh audit, ready for a dry run or apply run. |
+| `STALE` | A new scan has started or could not complete. Run the scanner again successfully before remuxing. |
 | `IN_PROGRESS` | An apply run was interrupted or could not finish updating its state. Inspect the report and run a fresh scan before retrying. |
 | `PROCESSED` | All files in the audit were successfully processed. Generate a new scan for another run. |
 | `PARTIAL` | At least one file failed during apply. Some other files may already have been replaced. Review the report and generate a fresh scan before retrying. |

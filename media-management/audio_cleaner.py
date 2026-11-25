@@ -58,7 +58,7 @@ def read_audit(path):
                 key, value = line[2:].strip().split("=", 1)
                 metadata[key] = value
 
-    if metadata.get("MEDIA_AUDIT_VERSION") != "2":
+    if metadata.get("MEDIA_AUDIT_VERSION") != "3":
         raise RuntimeError("unsupported or old audit format; run scan_media.py again")
     state = metadata.get("MEDIA_AUDIT_STATE")
     if state != "UNPROCESSED":
@@ -70,26 +70,20 @@ def read_audit(path):
         scan_errors = int(metadata.get("SCAN_ERRORS", "-1"))
     except ValueError:
         scan_errors = -1
-    if scan_errors != 0:
-        raise RuntimeError(
-            f"audit reports {scan_errors if scan_errors >= 0 else 'unknown'} scan error(s); "
-            "fix the scan problem and run scan_media.py again"
-        )
+    if scan_errors < 0:
+        raise RuntimeError("audit has no valid scan-error count; run scan_media.py again")
 
     with open(path, newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(line for line in handle if not line.startswith("#"))
         required = {
             "Filename", "Location", "File_Size", "File_Mtime_NS",
-            "Inspection_Status", "Stream_Index", "Stream_Type", "Language",
+            "Inspection_Status", "Action", "Stream_Index", "Stream_Type", "Language",
             "Codec", "Title", "Disposition_Default",
         }
         if not required.issubset(set(reader.fieldnames or [])):
             raise RuntimeError("audit CSV is missing required columns; run scan_media.py again")
         rows = list(reader)
 
-    errors = [row for row in rows if row.get("Inspection_Status") != "OK"]
-    if errors:
-        raise RuntimeError(f"audit contains {len(errors)} inspection error row(s); scan again")
     return rows
 
 
@@ -223,8 +217,12 @@ def remux_one(path, rows, work_dir, apply_changes):
         raise RuntimeError((result.stderr or f"FFmpeg exited {result.returncode}").strip()[-1000:])
 
     validate_output(temp_output, expected_counts)
+    original_size = os.path.getsize(path)
+    remuxed_size = os.path.getsize(temp_output)
+    if remuxed_size >= original_size:
+        raise RuntimeError(f"no space reclaimed (original {original_size} bytes, remuxed {remuxed_size} bytes); original left untouched")
     if not apply_changes:
-        return
+        return original_size, remuxed_size
 
     # Recheck the original immediately before replacement to avoid overwriting concurrent edits.
     latest_stat = os.stat(path)
@@ -255,6 +253,7 @@ def remux_one(path, rows, work_dir, apply_changes):
         except OSError:
             pass
         raise
+    return original_size, remuxed_size
 
 
 def write_report(lines):
@@ -294,9 +293,19 @@ def main():
         return 1
 
     files = defaultdict(list)
+    review_files = set()
+    scan_error_rows = 0
     for row in rows:
+        if row.get("Inspection_Status") != "OK":
+            scan_error_rows += 1
+            continue
         filename = row["Filename"]
         location = row["Location"]
+        if row.get("Action") == "REVIEW":
+            review_files.add(os.path.join(location, filename))
+            continue
+        if row.get("Action") != "AUTO":
+            continue
         if not filename or os.path.basename(filename) != filename:
             print(f"ERROR: unsafe filename in audit: {filename!r}", file=sys.stderr)
             return 1
@@ -311,6 +320,8 @@ def main():
     total = len(files)
     succeeded = failed = 0
     failures = []
+    reclaimed_bytes = original_bytes = 0
+    no_saving = 0
     start = time.monotonic()
 
     if dry_run:
@@ -337,14 +348,18 @@ def main():
         work_dir = None
         try:
             work_dir = tempfile.mkdtemp(prefix=f"remux-{index:06d}-", dir=SSD_BUFFER)
-            remux_one(path, stream_rows, work_dir, apply_changes=not dry_run)
+            original_size, remuxed_size = remux_one(path, stream_rows, work_dir, apply_changes=not dry_run)
             succeeded += 1
+            original_bytes += original_size
+            reclaimed_bytes += original_size - remuxed_size
             if dry_run:
-                print("  Remux output validated; original left untouched.")
+                print(f"  Validated estimate: {original_size - remuxed_size} bytes; original left untouched.")
             else:
-                print("  Remuxed and validated; original replaced atomically.")
+                print(f"  Reclaimed: {original_size - remuxed_size} bytes; original replaced atomically.")
         except Exception as exc:
             failed += 1
+            if "no space reclaimed" in str(exc):
+                no_saving += 1
             failures.append(f"{path}: {exc}")
             print(f"  FAILED: {exc}")
         finally:
@@ -367,11 +382,19 @@ def main():
         "=" * 75,
         f"Run mode: {'DRY RUN' if dry_run else 'APPLY'}",
         f"Files in audit: {total}",
+        f"Manual review required: {len(review_files)}",
+        f"Scan errors recorded: {scan_error_rows}",
         f"Validated/replaced successfully: {succeeded}",
+        f"No-space-saving files left untouched: {no_saving}",
         f"Failed: {failed}",
+        f"Original bytes processed: {original_bytes}",
+        f"Space reclaimed (apply only): {reclaimed_bytes if not dry_run else 0}",
+        f"Estimated saving (dry-run only): {reclaimed_bytes if dry_run else 0}",
         f"Duration: {duration // 3600}h {(duration % 3600) // 60}m",
         f"Audit state: {final_state}",
     ]
+    if review_files:
+        report.extend(["", "MANUAL REVIEW REQUIRED:", *sorted(review_files)])
     if failures:
         report.extend(["", "FAILURES:", *failures])
     report.append("=" * 75)

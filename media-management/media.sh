@@ -1,35 +1,47 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -uo pipefail
 
-# Color codes
-GREEN='\033[0;32m' # Green color
-NC='\033[0m'       # No color
+ROOT_DIRECTORY="${MEDIA_ROOT:-/media}"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Function to count files with a specific extension
+if [[ ! -d "$ROOT_DIRECTORY" ]]; then
+    printf 'ERROR: media directory does not exist: %s\n' "$ROOT_DIRECTORY" >&2
+    exit 1
+fi
+
+if [[ ! -r "$ROOT_DIRECTORY" || ! -x "$ROOT_DIRECTORY" ]]; then
+    printf 'ERROR: media directory is not readable/searchable: %s\n' "$ROOT_DIRECTORY" >&2
+    exit 1
+fi
+
 count_files() {
-    local extension="$1"
-    find /media -type f -name "*.$extension" | wc -l
+    local pattern="$1"
+    local result
+    if ! result=$(find "$ROOT_DIRECTORY" -type f -iname "$pattern" -printf '.' 2>/dev/null | wc -c); then
+        return 1
+    fi
+    printf '%s' "$result"
 }
 
-# Count total number of MKV files
-echo "Counting MKV files..."
-mkv_count=$(count_files mkv)
-echo -e "MKV files found: ${GREEN}$mkv_count${NC}"
+printf 'Counting media files under %s...\n' "$ROOT_DIRECTORY"
 
-# Count total number of MP4 files
-echo "Counting MP4 files..."
-mp4_count=$(count_files mp4)
-echo -e "MP4 files found: ${GREEN}$mp4_count${NC}"
+if ! mkv_count=$(count_files '*.mkv') ||
+   ! mp4_count=$(count_files '*.mp4') ||
+   ! avi_count=$(count_files '*.avi'); then
+    printf 'ERROR: one or more counts failed; results may be incomplete.\n' >&2
+    exit 1
+fi
 
-# Count total number of AVI files
-echo "Counting AVI files..."
-avi_count=$(count_files avi)
-echo -e "AVI files found: ${GREEN}$avi_count${NC}"
-
-# Calculate the total count
 total_count=$((mkv_count + mp4_count + avi_count))
 
-# Display the results
-echo -e "Total number of MKV files: ${GREEN}$mkv_count${NC}"
-echo -e "Total number of MP4 files: ${GREEN}$mp4_count${NC}"
-echo -e "Total number of AVI files: ${GREEN}$avi_count${NC}"
-echo -e "Total number of all media files: ${GREEN}$total_count${NC}"
+if [[ -t 1 ]]; then
+    printf 'MKV files: %b%s%b\n' "$GREEN" "$mkv_count" "$NC"
+    printf 'MP4 files: %b%s%b\n' "$GREEN" "$mp4_count" "$NC"
+    printf 'AVI files: %b%s%b\n' "$GREEN" "$avi_count" "$NC"
+    printf 'Total media files: %b%s%b\n' "$GREEN" "$total_count" "$NC"
+else
+    printf 'MKV files: %s\nMP4 files: %s\nAVI files: %s\nTotal media files: %s\n' \
+        "$mkv_count" "$mp4_count" "$avi_count" "$total_count"
+fi

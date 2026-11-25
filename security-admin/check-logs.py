@@ -25,7 +25,7 @@ def parse_time(line: str, now: dt.datetime):
     m=SYSLOG_TS.match(line)
     if m:
         try:
-            value=dt.datetime.strptime(f"{now.year} {m.group(1)}", "%Y %b %d %H:%M:%S").replace(tzinfo=dt.timezone.utc)
+            local_tz=dt.datetime.now().astimezone().tzinfo\n            value=dt.datetime.strptime(f"{now.astimezone(local_tz).year} {m.group(1)}", "%Y %b %d %H:%M:%S").replace(tzinfo=local_tz).astimezone(dt.timezone.utc)
             if value > now + dt.timedelta(days=1):
                 value=value.replace(year=value.year-1)
             return value

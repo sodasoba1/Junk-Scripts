@@ -54,7 +54,7 @@ The analyser prefers the systemd journal and asks it for the selected time range
 
 It recognises common OpenSSH accepted/failed password, public-key, keyboard-interactive, hostbased, GSSAPI and `none` authentication messages, invalid-user probes (reported separately from confirmed failed attempts), and PAM authentication failures containing an `rhost`. Near-identical PAM/sshd records for the same IP, username and outcome within three seconds are suppressed to reduce duplicate counting; genuinely separate retries within that short interval may therefore be merged. It extracts the source address from the relevant SSH/PAM field and validates it as IPv4 or IPv6. It does not guess an IP from an arbitrary part of a log line.
 
-The report includes per-address failed/successful counts, invalid-user probes, usernames, recent event evidence, duplicate-line suppression, unparsed/undated candidate counts, and alert timelines for:
+The report includes per-address failed/successful counts, invalid-user probes, usernames, recent event evidence, duplicate-line suppression, unparsed/undated candidate counts, source-fallback warnings, and alert timelines for:
 - At least 8 failures for the same source IP and username in a rolling 10-minute window.
 - At least 15 failures from one source IP across accounts in a rolling 10-minute window (password-spray pattern).
 - At least 8 invalid-user probes from one source IP in a rolling 10-minute window.
@@ -68,7 +68,7 @@ These are deliberately transparent pattern alerts, not risk scores, probability 
 sudo ./listcon.sh
 ```
 
-Uses `ss -lntup` to show listening TCP/UDP sockets and `ss -ntup state established` to show established TCP connections. Process ownership may be unavailable for some sockets. If `ss` is unavailable, the script falls back to `netstat -tulnp`; that legacy fallback only reports listening sockets. A listening socket does not prove internet reachability: firewall, routing, NAT and interface binding also matter.
+Uses `ss -lntup` to show listening TCP/UDP sockets and `ss -ntp state established` to show established TCP connections. Process ownership may be unavailable for some sockets. If `ss` is unavailable, the script falls back to `netstat -tulnp`; that legacy fallback only reports listening sockets. A listening socket does not prove internet reachability: firewall, routing, NAT and interface binding also matter.
 
 ### Sessions and account privileges
 

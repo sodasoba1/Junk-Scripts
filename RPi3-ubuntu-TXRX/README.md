@@ -1,31 +1,29 @@
 # Raspberry Pi 3 Ubuntu TX/RX LED Indicator
 
-This folder contains a Python service that uses the Raspberry Pi status LEDs to indicate network link state, traffic and interface packet drops.
+This directory contains a first-run setup script, a Python network/LED monitor and its systemd unit. The monitor uses the Pi's ACT and PWR LED class devices to indicate link state, traffic and interface packet drops.
 
 ## Files
 
-| File | Purpose |
-|---|---|
-| `usr/local/sbin/setup-txrx-led.sh` | First-run setup. Detects the default-route network interface, checks the LED sysfs controls and writes the selected interface to `/etc/default/txrx-led`. |
-| `usr/local/bin/txrx_led.py` | Monitors link state and RX/TX byte/drop counters. Reads the interface from the systemd environment file. |
-| `etc/systemd/system/txrx-led.service` | Starts the monitor at boot and logs output to the systemd journal. |
+| Repository path | Installed path | Purpose |
+|---|---|---|
+| `usr/local/sbin/setup-txrx-led.sh` | `/usr/local/sbin/setup-txrx-led.sh` | First-run configuration. Checks the LED controls, detects the default-route interface and writes the selection to `/etc/default/txrx-led`. |
+| `usr/local/bin/txrx_led.py` | `/usr/local/bin/txrx_led.py` | Python monitor. Reads link state and RX/TX byte/drop counters from `/sys/class/net/<interface>`. |
+| `etc/systemd/system/txrx-led.service` | `/etc/systemd/system/txrx-led.service` | Starts the monitor at boot and supplies its interface configuration. |
 
-## First-run detection
+## Hardware assumptions
 
-The setup script is configured for the LED paths confirmed on this Raspberry Pi 3 Ubuntu installation:
+The setup script checks these LED paths, which have been confirmed on the target Raspberry Pi 3 Ubuntu installation:
 
-- Green: `/sys/class/leds/ACT`
-- Red: `/sys/class/leds/PWR`
+- Green/activity: `/sys/class/leds/ACT`
+- Red/power: `/sys/class/leds/PWR`
 
-It checks that each LED directory exists and exposes a writable `brightness` control. It does not change LED brightness or triggers during setup.
+For each device it verifies that the directory and `brightness` control exist and that the control is writable when run as root. It does not change LED brightness or triggers during setup.
 
-For the network interface, it checks the kernel's default route and offers that interface as the default selection. You can accept it or choose another detected non-loopback interface. The chosen name is saved in `/etc/default/txrx-led`.
+The Python monitor also checks `max_brightness` when available so that an LED's full-on value is not assumed to be `1`. If a `trigger` control exists, it records the active trigger, selects `none` while the monitor is running, and attempts to restore the previous trigger on shutdown.
 
-If either LED path or its brightness control is missing, setup stops with an error rather than configuring an incomplete service.
+## First-run setup and installation
 
-## Installation
-
-From the repository's `RPi3-ubuntu-TXRX` directory, install the three files:
+Run these commands from the repository's `RPi3-ubuntu-TXRX` directory:
 
 ```bash
 sudo install -D -m 0755 usr/local/bin/txrx_led.py /usr/local/bin/txrx_led.py
@@ -33,13 +31,23 @@ sudo install -D -m 0644 etc/systemd/system/txrx-led.service /etc/systemd/system/
 sudo install -D -m 0755 usr/local/sbin/setup-txrx-led.sh /usr/local/sbin/setup-txrx-led.sh
 ```
 
-Run first-run setup once:
+Run the setup script:
 
 ```bash
 sudo /usr/local/sbin/setup-txrx-led.sh
 ```
 
-Then enable and start the service:
+The script:
+
+1. Requires root and checks that the `ip` command is installed.
+2. Checks both expected LED paths and their writable `brightness` controls.
+3. Looks for an IPv4 default route first, then an IPv6 default route.
+4. Offers the detected interface for confirmation when an interactive terminal is available. If no default route is found, it presents a numbered list of non-loopback interfaces for manual selection.
+5. Validates that the selected interface still exists and writes `IFACE=<name>` to `/etc/default/txrx-led`.
+
+If a default route is detected but the script has no interactive terminal, it uses that detected interface automatically. If no default route exists and there is no interactive terminal for manual selection, setup stops with an explanatory error.
+
+The setup script does not start or enable the service. Once setup has completed, run:
 
 ```bash
 sudo systemctl daemon-reload
@@ -47,27 +55,63 @@ sudo systemctl enable --now txrx-led.service
 sudo systemctl status txrx-led.service
 ```
 
-If you later want to change the monitored interface, rerun the setup script or edit `/etc/default/txrx-led`, then restart the service:
+The systemd unit loads `/etc/default/txrx-led` as an environment file. Run setup successfully before starting the service; if the file is missing, systemd cannot start the unit.
+
+## Changing the interface
+
+Rerun the setup script and select a different interface, or edit the configuration directly:
+
+```bash
+sudo nano /etc/default/txrx-led
+```
+
+The file contains one setting, for example:
+
+```ini
+IFACE=eth0
+```
+
+Use the actual interface name detected on the Pi. After changing it, restart the service:
 
 ```bash
 sudo systemctl restart txrx-led.service
 ```
 
-View runtime messages and errors with:
+## Monitoring and troubleshooting
+
+Check service state:
+
+```bash
+sudo systemctl status txrx-led.service
+```
+
+Follow its logs:
 
 ```bash
 sudo journalctl -u txrx-led.service -f
 ```
 
-The scripts use only standard Bash, Python and Linux utilities; no third-party Python packages are required. Run setup and the service as root because the LED sysfs controls are normally writable only by root.
+If setup reports a missing LED path or brightness control, it stops without writing the interface configuration. Check the reported path and confirm that the expected LED class device is exposed by the running kernel. If the service reports that no interface is configured, run the setup script and then restart the service.
 
 ## LED behaviour
 
-- **Green LED:** solid on while the configured interface's `operstate` is `up`; a traffic-counter increase briefly turns it off for approximately 30 ms. It is not an off-when-idle activity LED.
+- **Green LED:** full brightness while the selected interface's `operstate` is `up`. When RX or TX byte counters increase, the LED is briefly switched off for approximately 30 ms, then returned to its normal link-up state. It is not an off-when-idle activity indicator.
 - **Red LED:** pulses for approximately 200 ms when either `rx_dropped` or `tx_dropped` increases. Pulses are rate-limited to at most one per second.
-- The first counter sample establishes a baseline, avoiding a false activity/drop event at startup. Counter decreases (for example, after an interface reset) establish a new baseline and are not reported as drops.
-- Counters are sampled while the interface exists, including while its link is down.
-- Missing interfaces are retried. Read/write failures are logged to the systemd journal.
-- On SIGTERM/SIGINT, the monitor turns the LEDs off and restores their previously active kernel triggers when available.
-- `rx_dropped` and `tx_dropped` are specific Linux interface statistics. They do not represent every possible network error; this monitor does not read `rx_errors` or `tx_errors`.
-- Polling is nominally every 50 ms while the link is up. A traffic or drop indication temporarily adds its blink duration to that cycle.
+- The first counter sample establishes a baseline, so startup does not create a false traffic or drop event.
+- Counter decreases, such as after an interface reset, are treated as a new baseline rather than as packet drops.
+- Counters are read while the interface exists even when its link is down. A missing interface is retried.
+- Read/write errors are written to the systemd journal.
+- On SIGTERM/SIGINT, the monitor attempts to turn the LEDs off and restore their previously active kernel triggers.
+
+## Timing and limitations
+
+- Link-up polling interval: nominally 50 ms.
+- Link-down polling interval: 500 ms.
+- Missing-interface/error retry interval: 1 second.
+- Traffic indication: approximately 30 ms.
+- Drop indication: approximately 200 ms, with a one-second minimum interval between pulses.
+- The monitor uses Linux `rx_dropped` and `tx_dropped` interface statistics. These counters do not represent every possible network error; `rx_errors` and `tx_errors` are not monitored.
+- The first default route returned by `ip` is selected. On systems with multiple default routes, confirm that the proposed interface is the one whose traffic you want to monitor.
+- The scripts use Bash, Python 3 and standard Linux utilities; no third-party Python packages are required. Setup and the service run as root because the LED sysfs controls are normally writable only by root.
+
+Hardware behaviour still needs to be confirmed by running the service on the Pi. Passing setup checks confirms the expected sysfs controls are present and writable; it does not prove that the LEDs illuminate as intended.

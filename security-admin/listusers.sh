@@ -35,10 +35,10 @@ while IFS=: read -r username _ uid gid gecos home shell; do
         in_rules && /^[[:space:]]*\(/ { print "Sudo rule: " $0; found=1 }
         END { if (!found) print "Sudo rule: no command specification reported (inspect sudo output if needed)." }
       '
-      if printf '%s\\n' "$policy" | awk '
-        /^[[:space:]]*\\(/ {
+      if printf '%s\n' "$policy" | awk '
+        /^[[:space:]]*\(/ {
           line=$0
-          sub(/^[[:space:]]*\\([^)]*\\)[[:space:]]*/, "", line)
+          sub(/^[[:space:]]*\([^)]*\)[[:space:]]*/, "", line)
           sub(/^([A-Z_]+:[[:space:]]*)+/, "", line)
           if (line == "ALL") found=1
         }

@@ -9,6 +9,7 @@ Automated media-stream audit and remux tools. The normal workflow is one command
 | `media_manager.py` | Runs the complete scan-and-apply workflow. |
 | `scan_media.py` | Inspects media and classifies automatic candidates, manual-review files and inspection errors. |
 | `audio_cleaner.py` | Remuxes eligible files, validates output, atomically replaces originals and calculates actual space savings. |
+| `setup_wsl_smb.sh` | Interactively discovers or accepts an SMB server, lists shares and mounts the selected share for WSL2. |
 | `media.sh` | Counts MKV, MP4 and AVI files. |
 
 ## Requirements and safety

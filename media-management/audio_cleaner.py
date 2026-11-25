@@ -16,7 +16,9 @@ from collections import defaultdict
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(SCRIPT_DIR, "media_audit.csv")
 REPORT_PATH = os.path.join(SCRIPT_DIR, "remux_report.txt")
-SSD_BUFFER = os.path.expanduser("~/remux_buffer")
+SSD_BUFFER = os.path.normpath(os.path.expandvars(os.path.expanduser(
+    os.environ.get("MEDIA_BUFFER", "~/remux_buffer")
+)))
 MIN_FREE_SPACE_MARGIN = 64 * 1024 * 1024
 FFPROBE_TIMEOUT = 90
 # ----------------------------------------
@@ -239,14 +241,24 @@ def remux_one(path, rows, work_dir, apply_changes):
             shutil.copyfileobj(remuxed, destination)
             destination.flush()
             os.fsync(destination.fileno())
-        try:
-            os.chown(sibling_temp, source_stat.st_uid, source_stat.st_gid)
-        except PermissionError:
-            staged_stat = os.stat(sibling_temp)
-            if (staged_stat.st_uid, staged_stat.st_gid) != (source_stat.st_uid, source_stat.st_gid):
-                raise RuntimeError("cannot preserve the source file's ownership")
+        # POSIX ownership can be preserved where supported. Windows Python does
+        # not expose os.chown; on SMB, the replacement inherits permissions from
+        # the containing directory/share rather than copying per-file ACLs.
+        if hasattr(os, "chown"):
+            try:
+                os.chown(sibling_temp, source_stat.st_uid, source_stat.st_gid)
+            except PermissionError:
+                staged_stat = os.stat(sibling_temp)
+                if (staged_stat.st_uid, staged_stat.st_gid) != (source_stat.st_uid, source_stat.st_gid):
+                    raise RuntimeError("cannot preserve the source file's ownership")
         shutil.copystat(path, sibling_temp)
         os.replace(sibling_temp, path)
+
+        # Confirm the replacement is present and readable on the source share
+        # before reporting any space as reclaimed.
+        if not os.path.isfile(path) or os.path.getsize(path) != remuxed_size:
+            raise RuntimeError("replacement verification failed: final file is missing or has the wrong size")
+        validate_output(path, expected_counts)
     except Exception:
         try:
             os.unlink(sibling_temp)

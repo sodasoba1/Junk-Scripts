@@ -294,10 +294,10 @@ def main():
 
     files = defaultdict(list)
     review_files = set()
-    scan_error_rows = 0
+    scan_error_rows = []
     for row in rows:
         if row.get("Inspection_Status") != "OK":
-            scan_error_rows += 1
+            scan_error_rows.append(row)
             continue
         filename = row["Filename"]
         location = row["Location"]
@@ -383,7 +383,7 @@ def main():
         f"Run mode: {'DRY RUN' if dry_run else 'APPLY'}",
         f"Files in audit: {total}",
         f"Manual review required: {len(review_files)}",
-        f"Scan errors recorded: {scan_error_rows}",
+        f"Scan errors recorded: {len(scan_error_rows)}",
         f"Validated/replaced successfully: {succeeded}",
         f"No-space-saving files left untouched: {no_saving}",
         f"Failed: {failed}",
@@ -395,6 +395,10 @@ def main():
     ]
     if review_files:
         report.extend(["", "MANUAL REVIEW REQUIRED:", *sorted(review_files)])
+    if scan_error_rows:
+        report.extend(["", "SCAN ERRORS:"])
+        for row in scan_error_rows:
+            report.append(f"{row.get('Location', '')}/{row.get('Filename', '')}: {row.get('Title', 'inspection error')}")
     if failures:
         report.extend(["", "FAILURES:", *failures])
     report.append("=" * 75)

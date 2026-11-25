@@ -56,6 +56,8 @@ It recognises common OpenSSH accepted/failed password, public-key, keyboard-inte
 
 The report includes per-address failed/successful counts, invalid-user probes, usernames, recent event evidence, duplicate-line suppression, unparsed/undated candidate counts, and alert timelines for:
 - At least 8 failures for the same source IP and username in a rolling 10-minute window.
+- At least 15 failures from one source IP across accounts in a rolling 10-minute window (password-spray pattern).
+- At least 8 invalid-user probes from one source IP in a rolling 10-minute window.
 - At least 5 failures for the same source IP and username in the 30 minutes before a successful authentication.
 
 These are deliberately transparent pattern alerts, not risk scores, probability estimates or proof of compromise. They may miss attacks that use different usernames, distributed source addresses, unsupported log formats or authentication systems outside the parsed SSH/PAM messages. Review original logs and correlate with account/session activity.

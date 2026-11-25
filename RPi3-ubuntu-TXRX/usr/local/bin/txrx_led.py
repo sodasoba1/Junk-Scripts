@@ -100,7 +100,7 @@ def main() -> int:
     )
 
     if not IFACE or IFACE == "ADD YOUR INTERFACE NAME HERE":
-        LOG.error("Set IFACE in %s to the real network interface name (see: ip -br link)", __file__)
+        LOG.error("No interface is configured; run /usr/local/sbin/setup-txrx-led.sh first")
         return 2
 
     green = Led(LED_GREEN, "green")

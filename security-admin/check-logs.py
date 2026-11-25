@@ -6,7 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 
 SSH_EVENT = re.compile(
-    r"(?P<outcome>Failed|Accepted) (?P<method>password|publickey|keyboard-interactive(?:/pam)?|hostbased|gssapi-with-mic)"
+    r"(?P<outcome>Failed|Accepted) (?P<method>password|publickey|keyboard-interactive(?:/pam)?|hostbased|gssapi-with-mic|none)"
     r" for (?:(?:invalid|illegal) user )?(?P<user>[^ ]+) from (?P<ip>[0-9a-fA-F:.]+)(?: port |$)", re.I)
 INVALID_USER = re.compile(r"Invalid user (?P<user>[^ ]+) from (?P<ip>[0-9a-fA-F:.]+)", re.I)
 PAM_FAILURE = re.compile(r"authentication failure;.*?rhost=(?P<ip>[^ ;]+).*?user=(?P<user>[^ ;]+)", re.I)

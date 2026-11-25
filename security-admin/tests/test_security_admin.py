@@ -16,6 +16,9 @@ class ParserTests(unittest.TestCase):
     def test_failed_publickey_ipv6(self):
         e=mod.parse_event("Nov 25 10:00:00 host sshd[1]: Failed publickey for bob from 2001:db8::1 port 22 ssh2",self.now)
         self.assertEqual((e["ip"],e["method"]),("2001:db8::1","publickey"))
+    def test_failed_none_method(self):
+        e=mod.parse_event("Nov 25 10:00:00 host sshd[1]: Failed none for bob from 203.0.113.8 port 22 ssh2",self.now)
+        self.assertEqual((e["ip"],e["method"],e["outcome"]),("203.0.113.8","none","failed"))
     def test_invalid_user(self):
         e=mod.parse_event("Nov 25 10:00:00 host sshd[1]: Invalid user guest from 198.51.100.2",self.now)
         self.assertEqual(e["outcome"],"invalid_user")

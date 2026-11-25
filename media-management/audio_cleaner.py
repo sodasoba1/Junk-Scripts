@@ -11,7 +11,6 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
 
 # ---------------- CONFIG ----------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -50,29 +49,33 @@ def read_audit(path):
     if not os.path.isfile(path):
         raise RuntimeError(f"audit CSV not found: {path}")
 
-    with open(path, newline="", encoding="utf-8") as handle:
-        header_lines = []
+    with open(path, encoding="utf-8") as handle:
+        metadata = {}
         for line in handle:
             if not line.startswith("#"):
                 break
-            header_lines.append(line.rstrip("\n"))
-
-        metadata = {}
-        for line in header_lines:
             if "=" in line:
-                key, value = line[2:].split("=", 1)
+                key, value = line[2:].strip().split("=", 1)
                 metadata[key] = value
 
-        if metadata.get("MEDIA_AUDIT_VERSION") != "2":
-            raise RuntimeError("unsupported or old audit format; run scan_media.py again")
-        state = metadata.get("MEDIA_AUDIT_STATE")
-        if state != "UNPROCESSED":
-            raise RuntimeError(
-                f"audit state is {state or 'missing'}; only UNPROCESSED audits can run. "
-                "Review the report and generate a fresh scan."
-            )
+    if metadata.get("MEDIA_AUDIT_VERSION") != "2":
+        raise RuntimeError("unsupported or old audit format; run scan_media.py again")
+    state = metadata.get("MEDIA_AUDIT_STATE")
+    if state != "UNPROCESSED":
+        raise RuntimeError(
+            f"audit state is {state or 'missing'}; only UNPROCESSED audits can run. "
+            "Review the report and generate a fresh scan."
+        )
+    try:
+        scan_errors = int(metadata.get("SCAN_ERRORS", "-1"))
+    except ValueError:
+        scan_errors = -1
+    if scan_errors != 0:
+        raise RuntimeError(
+            f"audit reports {scan_errors if scan_errors >= 0 else 'unknown'} scan error(s); "
+            "fix the scan problem and run scan_media.py again"
+        )
 
-        # Re-open and skip metadata comments for a normal DictReader.
     with open(path, newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(line for line in handle if not line.startswith("#"))
         required = {
@@ -86,9 +89,7 @@ def read_audit(path):
 
     errors = [row for row in rows if row.get("Inspection_Status") != "OK"]
     if errors:
-        raise RuntimeError(
-            f"audit contains {len(errors)} inspection error(s); resolve them and scan again"
-        )
+        raise RuntimeError(f"audit contains {len(errors)} inspection error row(s); scan again")
     return rows
 
 
@@ -150,7 +151,7 @@ def validate_output(output_path, expected_counts):
             )
 
 
-def remux_one(path, rows, work_dir):
+def remux_one(path, rows, work_dir, apply_changes):
     if os.path.islink(path) or not os.path.isfile(path):
         raise RuntimeError("source is not a regular file (symlinks are not replaced)")
     source_stat = os.stat(path)
@@ -160,49 +161,54 @@ def remux_one(path, rows, work_dir):
         raise RuntimeError("source changed since the audit; run scan_media.py again")
 
     source_streams = probe(path)
-    audio_rows = [r for r in rows if r["Stream_Type"] == "audio"]
-    subtitle_rows = [r for r in rows if r["Stream_Type"] == "subtitle"]
+    audio_rows = [row for row in rows if row["Stream_Type"] == "audio"]
+    subtitle_rows = [row for row in rows if row["Stream_Type"] == "subtitle"]
     if not audio_rows:
         raise RuntimeError("audit contains no audio stream entries for this file")
 
-    english_audio = [r for r in audio_rows if is_english(r["Language"])]
+    english_audio = [row for row in audio_rows if is_english(row["Language"])]
     keep_audio = english_audio if english_audio else audio_rows
-    english_subtitles = [r for r in subtitle_rows if is_english(r["Language"])]
+    english_subtitles = [row for row in subtitle_rows if is_english(row["Language"])]
     keep_subtitles = english_subtitles if english_subtitles else subtitle_rows
 
-    selected_indexes = {
-        int(row["Stream_Index"]) for row in keep_audio + keep_subtitles
-    }
+    selected_indexes = {int(row["Stream_Index"]) for row in keep_audio + keep_subtitles}
     if any(index < 0 or index >= len(source_streams) for index in selected_indexes):
         raise RuntimeError("audit stream indexes no longer match the source file")
 
+    extension = os.path.splitext(path)[1]
+    is_matroska = extension.lower() == ".mkv"
     mapping = ["-map", "0:v?"]
     for index in sorted(selected_indexes):
         mapping.extend(["-map", f"0:{index}"])
-
-    # Matroska attachments (fonts/images) are not audio or subtitle streams.
-    if os.path.splitext(path)[1].lower() == ".mkv":
-        mapping.extend(["-map", "0:t?"])
+    if is_matroska:
+        # Retain embedded fonts/images and data streams in Matroska containers.
+        mapping.extend(["-map", "0:t?", "-map", "0:d?"])
 
     expected_counts = defaultdict(int)
     for stream in source_streams:
-        if stream.get("codec_type") == "video":
+        stream_type = stream.get("codec_type", "")
+        if stream_type == "video":
             expected_counts["video"] += 1
-        elif stream.get("codec_type") == "attachment" and os.path.splitext(path)[1].lower() == ".mkv":
-            expected_counts["attachment"] += 1
+        elif is_matroska and stream_type in ("attachment", "data"):
+            expected_counts[stream_type] += 1
     expected_counts["audio"] = len(keep_audio)
     expected_counts["subtitle"] = len(keep_subtitles)
 
-    extension = os.path.splitext(path)[1]
+    extension = extension or ".media"
     temp_input = os.path.join(work_dir, "source" + extension)
     temp_output = os.path.join(work_dir, "remuxed" + extension)
     shutil.copy2(path, temp_input)
 
-    required_space = (os.path.getsize(temp_input) * 2) + MIN_FREE_SPACE_MARGIN
+    copied_stat = os.stat(temp_input)
+    if copied_stat.st_size != expected_size or copied_stat.st_mtime_ns != expected_mtime:
+        raise RuntimeError("source changed while it was being staged; run the scan again")
+
+    # The input copy already occupies one file-size worth of buffer space.
+    required_space = os.path.getsize(temp_input) + MIN_FREE_SPACE_MARGIN
     free_space = shutil.disk_usage(work_dir).free
     if free_space < required_space:
         raise RuntimeError(
-            f"insufficient buffer space: need about {required_space} bytes, "
+            f"insufficient buffer space: need about {required_space} additional bytes, "
             f"have {free_space} bytes"
         )
 
@@ -217,6 +223,13 @@ def remux_one(path, rows, work_dir):
         raise RuntimeError((result.stderr or f"FFmpeg exited {result.returncode}").strip()[-1000:])
 
     validate_output(temp_output, expected_counts)
+    if not apply_changes:
+        return
+
+    # Recheck the original immediately before replacement to avoid overwriting concurrent edits.
+    latest_stat = os.stat(path)
+    if latest_stat.st_size != expected_size or latest_stat.st_mtime_ns != expected_mtime:
+        raise RuntimeError("source changed during remux; original has been left untouched")
 
     # Stage the validated result on the source filesystem, then atomically replace.
     source_dir = os.path.dirname(path)
@@ -295,7 +308,7 @@ def main():
     start = time.monotonic()
 
     if dry_run:
-        print("DRY RUN: no media will be changed and the audit state will remain UNPROCESSED.")
+        print("DRY RUN: FFmpeg will test and validate outputs, but originals will not be changed.")
     else:
         try:
             update_audit_state(CSV_PATH, "IN_PROGRESS")
@@ -308,37 +321,22 @@ def main():
         elapsed = time.monotonic() - start
         eta = elapsed / index * (total - index) if index else 0
         percent = index / total * 100 if total else 100
-        pc = colour(progress_color(percent))
-        reset = colour(RESET)
-        italic = colour(ITALIC)
-        fg = colour(FG)
-        cyan = colour(CYAN)
+        pc, reset = colour(progress_color(percent)), colour(RESET)
+        italic, fg, cyan = colour(ITALIC), colour(FG), colour(CYAN)
         print(
             f"{pc}[{percent:5.1f}%]{reset} {italic}{fg}{name[:40]:<40}{reset} | "
             f"{cyan}ETA:{reset} {int(eta // 3600)}h {int((eta % 3600) // 60)}m"
         )
 
-        if dry_run:
-            try:
-                if os.path.islink(path) or not os.path.isfile(path):
-                    raise RuntimeError("source is not a regular file")
-                stat = os.stat(path)
-                if stat.st_size != int(stream_rows[0]["File_Size"]) or stat.st_mtime_ns != int(stream_rows[0]["File_Mtime_NS"]):
-                    raise RuntimeError("source changed since the audit")
-                print("  Would remux; source and audit fingerprint match.")
-                succeeded += 1
-            except Exception as exc:
-                failed += 1
-                failures.append(f"{path}: {exc}")
-                print(f"  FAILED: {exc}")
-            continue
-
         work_dir = None
         try:
             work_dir = tempfile.mkdtemp(prefix=f"remux-{index:06d}-", dir=SSD_BUFFER)
-            remux_one(path, stream_rows, work_dir)
+            remux_one(path, stream_rows, work_dir, apply_changes=not dry_run)
             succeeded += 1
-            print("  Remuxed and validated; original replaced atomically.")
+            if dry_run:
+                print("  Remux output validated; original left untouched.")
+            else:
+                print("  Remuxed and validated; original replaced atomically.")
         except Exception as exc:
             failed += 1
             failures.append(f"{path}: {exc}")
@@ -348,8 +346,8 @@ def main():
                 shutil.rmtree(work_dir, ignore_errors=True)
 
     duration = int(time.monotonic() - start)
+    final_state = "UNPROCESSED (unchanged)" if dry_run else ("PROCESSED" if failed == 0 else "PARTIAL")
     if not dry_run:
-        final_state = "PROCESSED" if failed == 0 else "PARTIAL"
         try:
             update_audit_state(CSV_PATH, final_state)
         except OSError as exc:
@@ -363,10 +361,10 @@ def main():
         "=" * 75,
         f"Run mode: {'DRY RUN' if dry_run else 'APPLY'}",
         f"Files in audit: {total}",
-        f"Successful: {succeeded}",
+        f"Validated/replaced successfully: {succeeded}",
         f"Failed: {failed}",
         f"Duration: {duration // 3600}h {(duration % 3600) // 60}m",
-        f"Audit state: {'UNPROCESSED (unchanged)' if dry_run else final_state}",
+        f"Audit state: {final_state}",
     ]
     if failures:
         report.extend(["", "FAILURES:", *failures])
@@ -377,7 +375,7 @@ def main():
         print("Review remux_report.txt. Generate a fresh audit before another apply run.")
         return 1
     if dry_run:
-        print("Dry run complete. Use --apply only after reviewing the proposed run.")
+        print("Dry run complete. Use --apply only after reviewing the validated run.")
     return 0
 
 

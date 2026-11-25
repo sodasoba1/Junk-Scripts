@@ -112,9 +112,9 @@ PRIV_ESC_TOTAL=$(($(count_log_lines "$SUDO_LOGS") + $(count_log_lines "$SU_LOGS"
 # - High brute counts matter less unless followed by success.
 
 is_private_ip() {
-  [[ "$1" =~ ^10\. ]] ||
-  [[ "$1" =~ ^192\.168\. ]] ||
-  [[ "$1" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]
+  [[ "$1" =~ ^10\\. ]] ||
+  [[ "$1" =~ ^192\\.168\\. ]] ||
+  [[ "$1" =~ ^172\\.(1[6-9]|2[0-9]|3[0-1])\\. ]]
 }
 
 for ip in "${!FAIL_COUNT[@]}"; do

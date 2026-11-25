@@ -22,6 +22,17 @@ fi
 
 mkdir -p "$MOUNT_POINT"
 
+read -r -p 'SMB username: ' SMB_USERNAME
+[[ -n "$SMB_USERNAME" ]] || fail 'No username was entered.'
+read -r -s -p 'SMB password: ' SMB_PASSWORD
+printf '\n'
+
+# Keep credentials out of command-line arguments and shell history.
+sudo install -d -m 700 /etc/samba
+printf 'username=%s\npassword=%s\n' "$SMB_USERNAME" "$SMB_PASSWORD" | sudo sh -c 'umask 077; cat > "$1"' sh "$CREDENTIALS_FILE"
+unset SMB_PASSWORD
+sudo chmod 600 "$CREDENTIALS_FILE"
+
 printf '\nSMB media-share setup\n'
 printf '1) Enter server IP/hostname manually\n'
 printf '2) Search for SMB servers on the network (may be limited by WSL networking)\n'
@@ -33,7 +44,7 @@ case "$choice" in
         ;;
     2)
         printf '\nSearching for browseable SMB servers...\n'
-        DISCOVERY_OUTPUT="$(smbtree -N 2>&1 || true)"
+        DISCOVERY_OUTPUT="$(smbtree -A "$CREDENTIALS_FILE" 2>&1 || true)"
         if [[ -n "$DISCOVERY_OUTPUT" ]]; then
             printf '%s\n' "$DISCOVERY_OUTPUT"
         else
@@ -46,16 +57,6 @@ case "$choice" in
     *) fail 'Choose 1 or 2.' ;;
 esac
 
-read -r -p 'SMB username: ' SMB_USERNAME
-[[ -n "$SMB_USERNAME" ]] || fail 'No username was entered.'
-read -r -s -p 'SMB password: ' SMB_PASSWORD
-printf '\n'
-
-# Keep credentials out of command-line arguments and shell history.
-sudo install -d -m 700 /etc/samba
-printf 'username=%s\npassword=%s\n' "$SMB_USERNAME" "$SMB_PASSWORD" | sudo sh -c 'umask 077; cat > "$1"' sh "$CREDENTIALS_FILE"
-unset SMB_PASSWORD
-sudo chmod 600 "$CREDENTIALS_FILE"
 
 printf '\nAvailable shares on %s:\n' "$SERVER"
 if ! smbclient -A "$CREDENTIALS_FILE" -L "//$SERVER"; then

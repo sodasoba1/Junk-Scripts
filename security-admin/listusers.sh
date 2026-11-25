@@ -40,7 +40,7 @@ while IFS=: read -r username _ uid gid gecos home shell; do
           line=$0
           sub(/^[[:space:]]*\([^)]*\)[[:space:]]*/, "", line)
           sub(/^([A-Z_]+:[[:space:]]*)+/, "", line)
-          if (line == "ALL") found=1
+          if (line == "ALL" || line ~ /(^|,[[:space:]]*)ALL([[:space:]]*,|$)/) found=1
         }
         END { exit !found }
       '; then

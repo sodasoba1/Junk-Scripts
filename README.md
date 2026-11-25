@@ -18,6 +18,30 @@ This repository is a practical toolbox rather than a single installable applicat
 | [Fuzz.sh](Fuzz.sh) | HTTP endpoint/path and request-handling behaviour tester |
 | [png-to-opening-bnr.py](png-to-opening-bnr.py) | Convert a PNG into a GameCube `opening.bnr` banner |
 
+## Standalone root scripts
+
+### `Fuzz.sh` — HTTP Request / Path Behaviour Tester
+
+Accepts a base URL and target path, sends a baseline GET request, then tests URL/path variants, common proxy/rewrite headers, HTTP methods and POST bodies. It prints each response's HTTP status, downloaded byte count and elapsed time, highlighting differences from the baseline status/size. Requires `curl`.
+
+Example (only against an endpoint you own or are authorised to test):
+
+```bash
+./Fuzz.sh https://example.com admin
+```
+
+This is a lightweight behaviour/fuzzing aid, not a complete vulnerability scanner. Its requests can reach application endpoints and may trigger side effects.
+
+### `png-to-opening-bnr.py` — GameCube Banner Creator
+
+Interactively asks for a PNG image, game title, developer, description and region. Resizes the image to 96×32, converts pixels into the GameCube tiled RGB5A3 texture representation, writes BNR1 (NTSC-U/J) or BNR2 (PAL) metadata and creates an `opening.bnr` file with the expected region-specific size. Requires Python 3 and Pillow.
+
+Run it from the directory containing the source PNG:
+
+```bash
+python3 png-to-opening-bnr.py
+```
+
 ## General requirements
 
 Requirements vary by script. Common dependencies include Bash, Python 3, standard Linux command-line tools, `smartmontools`, `ffmpeg`/`ffprobe`, Flask, psutil, requests, and Pillow. The relevant folder README lists dependencies and usage for each tool.

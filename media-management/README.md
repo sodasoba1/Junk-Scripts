@@ -50,13 +50,15 @@ MEDIA_ROOT=/media MEDIA_BUFFER=/path/to/local-ssd/remux_buffer python3 media_man
 
 `MEDIA_ROOT` accepts either a mapped drive or UNC path on Windows. `MEDIA_BUFFER` should point to a local SSD directory, not the network share.
 
+**Network-I/O policy:** media content is read from the share once per candidate to create the local working copy. All subsequent probing, hashing and remuxing use that local copy and its local output. Apply mode necessarily writes the result to a temporary file beside the original, then reads that staged network copy once for end-to-end verification before atomic replacement. No full-file hash pass is performed against the original network file.
+
 The manager:
 1. Runs a fresh scan and invalidates the previous audit.
 2. Records per-file stream metadata, file size and nanosecond modification time.
 3. Processes only files with a positively identified English audio track where at least one audio or subtitle stream can be removed under the rules below.
 4. Leaves files without a positively identified English audio track in the manual-review queue.
 5. Continues processing unaffected candidates when individual files fail inspection.
-6. Validates each remux, compares SHA-256 hashes of every encoded video stream's packet data between the staged source and remux, then verifies the network-side staged copy before replacing the original only when the output is smaller.
+6. Copies each candidate from the network share to the local SSD once. FFprobe inspection, source hashing, remuxing and output hashing then run against local files. The local source and remux video packet SHA-256 hashes must match. For apply runs, the remux is copied back to a temporary sibling on the share and that staged copy is probed and hashed against the already-validated local remux before the original is replaced.
 7. Writes `remux_report.txt` and the combined `media_run_report.txt`.
 
 No dry-run approval is required for the automated command. The cleaner's standalone default remains dry-run; the manager explicitly invokes `--apply`.

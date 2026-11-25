@@ -11,7 +11,16 @@ import tempfile
 from datetime import datetime, timezone
 
 # ---------------- CONFIG ----------------
-ROOT_DIRECTORY = "/media"
+# Set MEDIA_ROOT to either a mapped drive (e.g. Z:\\Media) or UNC path
+# (e.g. \\\\SERVER\\Media). Linux defaults to /media.
+_configured_root = os.environ.get("MEDIA_ROOT")
+if os.name == "nt" and not _configured_root:
+    raise RuntimeError(
+        "Set MEDIA_ROOT to the Windows mapped-drive or UNC media path before scanning."
+    )
+ROOT_DIRECTORY = os.path.normpath(os.path.expandvars(os.path.expanduser(
+    _configured_root or "/media"
+)))
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(SCRIPT_DIR, "media_audit.csv")
 VIDEO_EXTENSIONS = (".mkv", ".mp4", ".avi", ".mov", ".m4v")

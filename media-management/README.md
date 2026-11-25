@@ -22,6 +22,134 @@ Automated media-stream audit and remux tools. The normal workflow is one command
 - A run lock prevents two manager instances from scanning/replacing files concurrently.
 - No backups are created. The validated remux is staged, checked, copied to a temporary file beside the source, and atomically replaced. This protects against partial replacement, not against later data loss.
 
+## Installation and setup
+
+### 1. Get the project
+
+Clone the repository, or download it as a ZIP and extract it. If cloning:
+
+```bash
+git clone https://github.com/sodasoba1/Junk-Scripts.git
+cd Junk-Scripts/media-management
+```
+
+All commands below should be run from the `media-management` directory.
+
+### 2. Install the required software
+
+The scripts require **Python 3** and **FFmpeg** (both `ffmpeg` and `ffprobe` must be available on your PATH). No third-party Python packages are required.
+
+**Windows**
+
+1. Install Python 3 from [python.org](https://www.python.org/downloads/). During setup, enable the option to add Python to PATH.
+2. Install an FFmpeg build that includes both `ffmpeg.exe` and `ffprobe.exe`, and add its `bin` directory to your Windows PATH.
+3. Open a new PowerShell window and verify:
+
+```powershell
+py --version
+ffmpeg -version
+ffprobe -version
+```
+
+If a command is not recognised, correct the PATH entry and open a new terminal before continuing.
+
+**Ubuntu / Debian / WSL2 Ubuntu**
+
+```bash
+sudo apt update
+sudo apt install -y python3 ffmpeg
+```
+
+For WSL2 SMB mounting, also install the SMB tools:
+
+```bash
+sudo apt install -y cifs-utils smbclient
+```
+
+Verify the required commands:
+
+```bash
+python3 --version
+ffmpeg -version
+ffprobe -version
+```
+
+### 3. Configure the media location and local working space
+
+Choose the media root and a staging directory on a local SSD. The staging directory must not be on the SMB share.
+
+**Windows PowerShell — mapped drive:**
+
+```powershell
+$env:MEDIA_ROOT = 'Z:\Media'
+$env:MEDIA_BUFFER = 'D:\RemuxBuffer'
+New-Item -ItemType Directory -Force $env:MEDIA_BUFFER
+```
+
+**Windows PowerShell — UNC path:**
+
+```powershell
+$env:MEDIA_ROOT = '\\SERVER\Media'
+$env:MEDIA_BUFFER = 'D:\RemuxBuffer'
+New-Item -ItemType Directory -Force $env:MEDIA_BUFFER
+```
+
+**Linux / WSL2:**
+
+```bash
+export MEDIA_ROOT=/mnt/media
+export MEDIA_BUFFER="$HOME/remux_buffer"
+mkdir -p "$MEDIA_BUFFER"
+```
+
+Change these example paths to match your actual library and available SSD space. On Windows, `MEDIA_ROOT` must be set before running the scanner or manager. On Linux, it defaults to `/media`.
+
+### 4. WSL2: mount the SMB share
+
+If you are using WSL2 and the media library is on a Windows-accessible SMB server, install the SMB tools as shown above, then run:
+
+```bash
+chmod +x ./setup_wsl_smb.sh
+./setup_wsl_smb.sh
+```
+
+The script asks for your SMB username and password (the password is entered without being echoed), then lets you enter the server IP/hostname or attempt network discovery. It lists the available shares and asks which share to mount at `/mnt/media`. Discovery can be restricted by WSL networking; use the manual server entry if it finds nothing.
+
+The credentials file is stored at `/etc/samba/credentials-media-management` with root-only permissions (mode `600`). It is plaintext protected by Linux file permissions, so root users in that WSL distribution can read it. The script creates a temporary mount for the current WSL session; it does not configure a persistent mount.
+
+Check the mount and locate the actual media folder:
+
+```bash
+mountpoint /mnt/media
+ls -la /mnt/media
+```
+
+If the library is inside a subfolder of the share, set `MEDIA_ROOT` to that subfolder, for example:
+
+```bash
+export MEDIA_ROOT=/mnt/media/Movies
+```
+
+To disconnect the share when finished:
+
+```bash
+sudo umount /mnt/media
+```
+
+If the share is already mounted, the setup script reports that and exits. It does not remount or verify that the existing mount is the intended share.
+
+### 5. Check the configuration before processing
+
+Confirm that the media root exists and that the staging directory is local and has enough free space. The manager checks that the media root is writable and, under WSL2, that it is inside a mounted CIFS/SMB share.
+
+You can count the supported media files first:
+
+```bash
+./media.sh
+```
+
+On Windows, run the count script from a Bash environment that provides `find` (for example WSL), or use the Python workflow directly.
+
 ## Automated workflow
 
 Run from this directory.

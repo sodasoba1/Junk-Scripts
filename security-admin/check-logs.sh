@@ -54,8 +54,8 @@ search_logs() {
 
 FAILED="Failed password|Invalid user|authentication failure"
 SUCCESS="Accepted password|Accepted publickey"
-SUDO="sudo:"
-SU="su:"
+SUDO="sudo(:|\\[)"
+SU="su(:|\\[)"
 
 FAILED_LOGS=$(search_logs "$FAILED")
 SUCCESS_LOGS=$(search_logs "$SUCCESS")
@@ -68,14 +68,14 @@ declare -A SCORE
 
 extract_ip() {
   # One plausible IPv4 address is attributed to each event.
-  grep -oE '([0-9]{1,3}\\.){3}[0-9]{1,3}' |
+  grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' |
     awk -F. 'NF == 4 && $1 <= 255 && $2 <= 255 && $3 <= 255 && $4 <= 255' |
     head -n 1 || true
 }
 
 count_log_lines() {
   local count
-  count=$(printf '%s\\n' "$1" | grep -c . || true)
+  count=$(printf '%s\n' "$1" | grep -c . || true)
   printf '%s' "$count"
 }
 
@@ -101,7 +101,7 @@ while read -r line; do
   SUCCESS_COUNT["$ip"]=$(( ${SUCCESS_COUNT["$ip"]:-0} + 1 ))
 done <<< "$SUCCESS_LOGS"
 
-PRIV_ESC_TOTAL=$(echo -e "$SUDO_LOGS\n$SU_LOGS" | wc -l)
+PRIV_ESC_TOTAL=$(($(count_log_lines "$SUDO_LOGS") + $(count_log_lines "$SU_LOGS")))
 
 # -------------------------------------------------
 # Threat Scoring (Home Lab Tuned)
@@ -140,12 +140,9 @@ for ip in "${!SUCCESS_COUNT[@]}"; do
   fi
 done
 
-# Privilege escalation context
-if (( PRIV_ESC_TOTAL > 0 )); then
-  for ip in "${!SCORE[@]}"; do
-    SCORE["$ip"]=$(( SCORE["$ip"] + 10 ))
-  done
-fi
+# Sudo/su events are reported as host-level context only. They are not
+# attributable to an SSH source IP, so they must not inflate IP risk scores.
+
 
 classify() {
   local s=$1
@@ -167,7 +164,7 @@ classify() {
 echo "Summary:"
 printf "  Failed Attempts:       %s\n" "$(count_log_lines "$FAILED_LOGS")"
 printf "  Successful Logins:     %s\n" "$(count_log_lines "$SUCCESS_LOGS")"
-printf "  Privilege Escalations: %s\n" "$PRIV_ESC_TOTAL"
+printf "  Sudo/su Events:        %s\n" "$PRIV_ESC_TOTAL"
 echo
 
 echo "Threat Table:"
@@ -192,5 +189,5 @@ echo "Home Lab Guidance:"
 echo " - LOW: internet noise."
 echo " - MEDIUM: brute force source."
 echo " - HIGH: possible credential compromise."
-echo " - CRITICAL: fail→success pattern or internal misuse."
+echo " - CRITICAL: high heuristic score; investigate the underlying events."
 echo

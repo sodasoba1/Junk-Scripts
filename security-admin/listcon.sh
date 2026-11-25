@@ -8,7 +8,7 @@ if command -v ss >/dev/null 2>&1; then
   ss -H -lntup || { echo "ERROR: ss failed." >&2; exit 1; }
   echo
   echo "=== ESTABLISHED TCP CONNECTIONS ==="
-  ss -H -ntup state established || { echo "ERROR: ss connection query failed." >&2; exit 1; }
+  ss -H -ntp state established || { echo "ERROR: ss connection query failed." >&2; exit 1; }
 elif command -v netstat >/dev/null 2>&1; then
   echo "WARNING: iproute2/ss unavailable; using legacy netstat. Output is listening sockets only."
   netstat -tulnp

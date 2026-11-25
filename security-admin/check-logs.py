@@ -63,6 +63,20 @@ def parse_event(line, timestamp):
             return {"time":timestamp.isoformat(), "ip":ip, "user":m.group("user"), "method":"PAM", "outcome":"failed", "evidence":line.rstrip()}
     return None
 
+def deduplicate_events(events):
+    # sshd and PAM can log the same failed attempt within a few seconds.
+    # Collapse near-identical records so one attempt is not counted twice.
+    deduplicated=[]; last_seen={}; duplicates_suppressed=0
+    for event in sorted(events,key=lambda e:e["time"]):
+        key=(event["ip"],event["user"],event["outcome"])
+        stamp=dt.datetime.fromisoformat(event["time"])
+        previous=last_seen.get(key)
+        if previous is not None and (stamp-previous).total_seconds() <= 3:
+            duplicates_suppressed+=1
+            continue
+        deduplicated.append(event); last_seen[key]=stamp
+    return deduplicated,duplicates_suppressed
+
 def read_sources(now, hours):
     journalctl=__import__("shutil").which("journalctl")
     if journalctl:
@@ -119,19 +133,7 @@ def main():
         if event: events.append(event)
         elif re.search(r"Failed |Accepted |Invalid user |authentication failure",line,re.I):
             unparsed+=1
-    events.sort(key=lambda e:e["time"])
-    # sshd and PAM can log the same failed attempt within a few seconds.
-    # Collapse near-identical records so one attempt is not counted twice.
-    deduplicated=[]; last_seen={}; duplicates_suppressed=0
-    for event in events:
-        key=(event["ip"],event["user"],event["outcome"])
-        stamp=dt.datetime.fromisoformat(event["time"])
-        previous=last_seen.get(key)
-        if previous is not None and (stamp-previous).total_seconds() <= 3:
-            duplicates_suppressed+=1
-            continue
-        deduplicated.append(event); last_seen[key]=stamp
-    events=deduplicated
+    events,duplicates_suppressed=deduplicate_events(events)
     by_ip=defaultdict(list); by_pair=defaultdict(list)
     for event in events:
         by_ip[event["ip"]].append(event); by_pair[(event["ip"],event["user"])].append(event)

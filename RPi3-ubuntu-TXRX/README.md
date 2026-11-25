@@ -6,7 +6,7 @@ This folder contains a Python service that uses Linux LED class devices to indic
 
 | File | Name | Purpose and functionality |
 |---|---|---|
-| `usr/local/bin/txrx_led.py` | Network TX/RX and Drop LED Monitor | Reads link state and RX/TX byte/drop counters from `/sys/class/net/<interface>`. The green LED is solid while the interface is up and is briefly interrupted when traffic counters increase. The red LED pulses when RX or TX dropped-packet counters increase, with a one-second minimum interval between pulses. |
+| `usr/local/bin/txrx_led.py` | Network TX/RX and Drop LED Monitor | Reads link state and RX/TX byte/drop counters from `/sys/class/net/<interface>`. The interface name is loaded from `/etc/default/txrx-led`. The green LED is solid while the interface is up and is briefly interrupted when traffic counters increase. The red LED pulses when RX or TX dropped-packet counters increase, with a one-second minimum interval between pulses. |\n| `usr/local/sbin/setup-txrx-led.sh` | First-run Setup | Detects the default-route interface, checks the expected LED sysfs controls and saves the selected interface to `/etc/default/txrx-led`. |
 | `etc/systemd/system/txrx-led.service` | TX/RX LED systemd Service | Runs the monitor as root at boot, restarts it after an unexpected failure and leaves output in the systemd journal for diagnosis. |
 
 ## Hardware and configuration checks

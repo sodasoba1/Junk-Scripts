@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Evidence-based Linux authentication log review; standard library only."""
 from __future__ import annotations
-import argparse, datetime as dt, gzip, ipaddress, json, re, subprocess, sys
+import argparse, datetime as dt, gzip, ipaddress, json, re, subprocess, sys, time
 from collections import defaultdict
 from pathlib import Path
 
@@ -25,10 +25,12 @@ def parse_time(line: str, now: dt.datetime):
     m=SYSLOG_TS.match(line)
     if m:
         try:
-            local_tz=dt.datetime.now().astimezone().tzinfo
-            value=dt.datetime.strptime(f"{now.astimezone(local_tz).year} {m.group(1)}", "%Y %b %d %H:%M:%S").replace(tzinfo=local_tz).astimezone(dt.timezone.utc)
+            local_year=now.astimezone().year
+            parsed=time.strptime(f"{local_year} {m.group(1)}", "%Y %b %d %H:%M:%S")
+            value=dt.datetime.fromtimestamp(time.mktime(parsed), dt.timezone.utc)
             if value > now + dt.timedelta(days=1):
-                value=value.replace(year=value.year-1)
+                parsed=time.strptime(f"{local_year-1} {m.group(1)}", "%Y %b %d %H:%M:%S")
+                value=dt.datetime.fromtimestamp(time.mktime(parsed), dt.timezone.utc)
             return value
         except ValueError:
             return None
@@ -59,15 +61,15 @@ def parse_event(line, timestamp):
             return {"time":timestamp.isoformat(), "ip":ip, "user":m.group("user"), "method":"PAM", "outcome":"failed", "evidence":line.rstrip()}
     return None
 
-def read_sources(now):
+def read_sources(now, hours):
     journalctl=__import__("shutil").which("journalctl")
     if journalctl:
-        since=(now-dt.timedelta(hours=48)).strftime("%Y-%m-%d %H:%M:%S UTC")
+        since=(now-dt.timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S UTC")
         try:
             p=subprocess.run([journalctl,"--since",since,"--output=short-iso-precise","--no-pager"],
                              text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=90)
-            if p.returncode==0:
-                return p.stdout.splitlines(), "systemd journal (48-hour window)", []
+            if p.returncode==0 and any(re.search(r"sshd|authentication failure", line, re.I) for line in p.stdout.splitlines()):
+                return p.stdout.splitlines(), f"systemd journal ({hours:g}-hour window)", []
         except (OSError,subprocess.SubprocessError) as exc:
             journal_error=str(exc)
         else:
@@ -99,7 +101,7 @@ def main():
         parser.error("--hours must be greater than 0 and no more than 8760")
     now=dt.datetime.now(dt.timezone.utc); cutoff=now-dt.timedelta(hours=args.hours)
     try:
-        lines,source,errors=read_sources(now)
+        lines,source,errors=read_sources(now,args.hours)
     except RuntimeError as exc:
         print(f"ERROR: {exc}",file=sys.stderr); return 2
     events=[]; unparsed=0; undated=0

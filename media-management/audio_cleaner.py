@@ -241,6 +241,12 @@ def remux_one(path, rows, work_dir, apply_changes):
             shutil.copyfileobj(remuxed, destination)
             destination.flush()
             os.fsync(destination.fileno())
+        try:
+            os.chown(sibling_temp, source_stat.st_uid, source_stat.st_gid)
+        except PermissionError:
+            staged_stat = os.stat(sibling_temp)
+            if (staged_stat.st_uid, staged_stat.st_gid) != (source_stat.st_uid, source_stat.st_gid):
+                raise RuntimeError("cannot preserve the source file's ownership")
         shutil.copystat(path, sibling_temp)
         os.replace(sibling_temp, path)
     except Exception:

@@ -59,6 +59,34 @@ The manager:
 
 No dry-run approval is required for the automated command. The cleaner's standalone default remains dry-run; the manager explicitly invokes `--apply`.
 
+**WSL2 Ubuntu — direct SMB mount (recommended for a Windows PC using WSL2):**
+
+Install the mount and discovery tools:
+
+```bash
+sudo apt update
+sudo apt install -y cifs-utils smbclient
+```
+
+Run the interactive SMB setup:
+
+```bash
+chmod +x ./setup_wsl_smb.sh
+./setup_wsl_smb.sh
+```
+
+The setup offers both manual server IP/hostname entry and a browseable-network discovery attempt. Discovery depends on SMB browsing and WSL networking; manual entry is the reliable fallback. It then lists shares, prompts for the share name and credentials, and mounts the selected share at `/mnt/media`.
+
+The SMB credentials are stored separately from the scripts in `/etc/samba/credentials-media-management`, owned by root and restricted to mode `600`. This is a plaintext credentials file protected by Linux permissions; anyone with root access to the WSL distribution can read it. The script does not configure an automatic/persistent mount.
+
+Run the manager after checking the mounted path. If the library is in a subfolder of the share, set `MEDIA_ROOT` to that subfolder:
+
+```bash
+MEDIA_ROOT=/mnt/media MEDIA_BUFFER=~/remux_buffer python3 media_manager.py
+```
+
+Keep `MEDIA_BUFFER` inside WSL's Linux filesystem (for example, `~/remux_buffer`), not on the SMB mount or under `/mnt/c`.
+
 ## Track-selection rules
 
 - All video streams are retained.

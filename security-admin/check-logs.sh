@@ -45,7 +45,7 @@ fi
 search_logs() {
   local pattern="$1"
   if [[ "$USE_JOURNAL" == true ]]; then
-    journalctl -u ssh -u sshd --since "$WINDOW" --no-pager 2>/dev/null \
+    journalctl --since "$WINDOW" --no-pager 2>/dev/null \
       | grep -E "$pattern" || true
   else
     zgrep -hE "$pattern" "${LOG_FILES[@]}" 2>/dev/null | tail -n 5000 || true
@@ -78,7 +78,7 @@ while read -r line; do
   [[ -z "$line" ]] && continue
   ip=$(echo "$line" | extract_ip)
   [[ -z "$ip" ]] && continue
-  ((FAIL_COUNT["$ip"]++))
+  FAIL_COUNT["$ip"]=$(( ${FAIL_COUNT["$ip"]:-0} + 1 ))
 done <<< "$FAILED_LOGS"
 
 # -------------------------------------------------
@@ -89,7 +89,7 @@ while read -r line; do
   [[ -z "$line" ]] && continue
   ip=$(echo "$line" | extract_ip)
   [[ -z "$ip" ]] && continue
-  ((SUCCESS_COUNT["$ip"]++))
+  SUCCESS_COUNT["$ip"]=$(( ${SUCCESS_COUNT["$ip"]:-0} + 1 ))
 done <<< "$SUCCESS_LOGS"
 
 PRIV_ESC_TOTAL=$(echo -e "$SUDO_LOGS\n$SU_LOGS" | wc -l)

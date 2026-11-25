@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""Evidence-based Linux authentication log review; standard library only."""
+from __future__ import annotations
+import argparse, datetime as dt, gzip, ipaddress, json, re, subprocess, sys
+from collections import defaultdict
+from pathlib import Path
+
+SSH_EVENT = re.compile(
+    r"(?P<outcome>Failed|Accepted) (?P<method>password|publickey|keyboard-interactive(?:/pam)?|hostbased|gssapi-with-mic)"
+    r" for (?:(?:invalid|illegal) user )?(?P<user>[^ ]+) from (?P<ip>[0-9a-fA-F:.]+)(?: port |$)", re.I)
+INVALID_USER = re.compile(r"Invalid user (?P<user>[^ ]+) from (?P<ip>[0-9a-fA-F:.]+)", re.I)
+PAM_FAILURE = re.compile(r"authentication failure;.*?rhost=(?P<ip>[^ ;]+).*?user=(?P<user>[^ ;]+)", re.I)
+ISO_TS = re.compile(r"^(\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)?)")
+SYSLOG_TS = re.compile(r"^([A-Z][a-z]{2}\s+\d{1,2}\s+\d\d:\d\d:\d\d)")
+
+def parse_time(line: str, now: dt.datetime):
+    m = ISO_TS.match(line)
+    if m:
+        raw=m.group(1).replace("Z","+00:00")
+        try:
+            value=dt.datetime.fromisoformat(raw)
+            return value.replace(tzinfo=value.tzinfo or dt.timezone.utc).astimezone(dt.timezone.utc)
+        except ValueError:
+            pass
+    m=SYSLOG_TS.match(line)
+    if m:
+        try:
+            value=dt.datetime.strptime(f"{now.year} {m.group(1)}", "%Y %b %d %H:%M:%S").replace(tzinfo=dt.timezone.utc)
+            if value > now + dt.timedelta(days=1):
+                value=value.replace(year=value.year-1)
+            return value
+        except ValueError:
+            return None
+    return None
+
+def valid_ip(value):
+    try:
+        ip=ipaddress.ip_address(value.strip("[]"))
+        return str(ip)
+    except ValueError:
+        return None
+
+def parse_event(line, timestamp):
+    m=SSH_EVENT.search(line)
+    if m:
+        ip=valid_ip(m.group("ip"))
+        if ip:
+            return {"time":timestamp.isoformat(), "ip":ip, "user":m.group("user"), "method":m.group("method").lower(), "outcome":m.group("outcome").lower(), "evidence":line.rstrip()}
+    m=INVALID_USER.search(line)
+    if m:
+        ip=valid_ip(m.group("ip"))
+        if ip:
+            return {"time":timestamp.isoformat(), "ip":ip, "user":m.group("user"), "method":"unknown", "outcome":"failed", "evidence":line.rstrip()}
+    m=PAM_FAILURE.search(line)
+    if m:
+        ip=valid_ip(m.group("ip"))
+        if ip and ip not in ("", "0.0.0.0", "::"):
+            return {"time":timestamp.isoformat(), "ip":ip, "user":m.group("user"), "method":"PAM", "outcome":"failed", "evidence":line.rstrip()}
+    return None
+
+def read_sources(now):
+    journalctl=__import__("shutil").which("journalctl")
+    if journalctl:
+        since=(now-dt.timedelta(hours=48)).strftime("%Y-%m-%d %H:%M:%S UTC")
+        try:
+            p=subprocess.run([journalctl,"--since",since,"--output=short-iso-precise","--no-pager"],
+                             text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=90)
+            if p.returncode==0:
+                return p.stdout.splitlines(), "systemd journal (48-hour window)", []
+        except (OSError,subprocess.SubprocessError) as exc:
+            journal_error=str(exc)
+        else:
+            journal_error=p.stderr.strip() or f"journalctl exit status {p.returncode}"
+    else:
+        journal_error="journalctl is not installed"
+    paths=[]
+    for pattern in ("/var/log/auth.log*", "/var/log/secure*"):
+        paths.extend(Path("/").glob(pattern.lstrip("/")))
+    paths=sorted(set(p for p in paths if p.is_file()), key=lambda p:(p.stat().st_mtime,p.name))
+    if not paths:
+        raise RuntimeError(f"No readable authentication source. Journal fallback: {journal_error}")
+    lines=[]; errors=[]
+    for path in paths:
+        try:
+            opener=gzip.open if path.name.endswith(".gz") else open
+            with opener(path,"rt",encoding="utf-8",errors="replace") as stream:
+                lines.extend(stream)
+        except (OSError,EOFError) as exc:
+            errors.append(f"{path}: {exc}")
+    return lines, "authentication log files (timestamp-filtered)", errors
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--hours",type=float,default=48,help="look-back window (default: 48 hours)")
+    parser.add_argument("--json",action="store_true",help="emit machine-readable JSON")
+    args=parser.parse_args()
+    if args.hours<=0 or args.hours>8760:
+        parser.error("--hours must be greater than 0 and no more than 8760")
+    now=dt.datetime.now(dt.timezone.utc); cutoff=now-dt.timedelta(hours=args.hours)
+    try:
+        lines,source,errors=read_sources(now)
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}",file=sys.stderr); return 2
+    events=[]; unparsed=0; undated=0
+    for line in lines:
+        if not re.search(r"sshd|authentication failure",line,re.I):
+            continue
+        timestamp=parse_time(line,now)
+        if timestamp is None:
+            undated+=1; continue
+        if timestamp<cutoff or timestamp>now+dt.timedelta(minutes=5):
+            continue
+        event=parse_event(line,timestamp)
+        if event: events.append(event)
+        elif re.search(r"Failed |Accepted |Invalid user |authentication failure",line,re.I):
+            unparsed+=1
+    events.sort(key=lambda e:e["time"])
+    by_ip=defaultdict(list); by_pair=defaultdict(list)
+    for event in events:
+        by_ip[event["ip"]].append(event); by_pair[(event["ip"],event["user"])].append(event)
+    alerts=[]
+    for (ip,user),items in by_pair.items():
+        failures=[dt.datetime.fromisoformat(e["time"]) for e in items if e["outcome"]=="failed"]
+        successes=[dt.datetime.fromisoformat(e["time"]) for e in items if e["outcome"]=="accepted"]
+        for end in failures:
+            burst=[t for t in failures if end-dt.timedelta(minutes=10)<t<=end]
+            if len(burst)>=8:
+                alerts.append({"type":"failure_burst","ip":ip,"user":user,"count":len(burst),"window":"10 minutes",
+                               "detail":"At least 8 failed SSH/PAM authentication events in a rolling 10-minute window."})
+                break
+        if successes:
+            for success in successes:
+                prior=[t for t in failures if success-dt.timedelta(minutes=30)<=t<success]
+                if len(prior)>=5:
+                    alerts.append({"type":"failures_then_success","ip":ip,"user":user,"failures":len(prior),"window":"30 minutes",
+                                   "detail":"At least 5 failures for the same source IP and username preceded a successful authentication."})
+                    break
+    if args.json:
+        print(json.dumps({"host":__import__("socket").gethostname(),"generated_utc":now.isoformat(),
+          "window_hours":args.hours,"source":source,"events":events,"alerts":alerts,
+          "unparsed_auth_lines":unparsed,"undated_candidate_lines":undated,"source_errors":errors},indent=2))
+        return 0
+    print("="*72); print("AUTHENTICATION ACTIVITY REVIEW")
+    print(f"Host: {__import__('socket').gethostname()} | Generated UTC: {now.isoformat()}")
+    print(f"Source: {source} | Window: last {args.hours:g} hours")
+    print("="*72)
+    print(f"Parsed events: {len(events)} | Failed: {sum(e['outcome']=='failed' for e in events)} | Successful: {sum(e['outcome']=='accepted' for e in events)}")
+    print(f"Unparsed candidate lines: {unparsed} | Undated candidate lines: {undated}")
+    for error in errors: print(f"WARNING: could not read {error}")
+    print("\nSOURCE SUMMARY")
+    for ip,items in sorted(by_ip.items()):
+        failed=sum(e["outcome"]=="failed" for e in items); accepted=len(items)-failed
+        print(f"{ip:>39}  failed={failed:<5} successful={accepted:<5} users={','.join(sorted({e['user'] for e in items}))}")
+    print("\nALERTS")
+    if not alerts: print("No configured failure patterns detected. This is not proof that the host is uncompromised.")
+    for a in alerts: print(f"- {a['type']}: {a['ip']} user={a['user']} ({a.get('count',a.get('failures'))} events; {a['window']}). {a['detail']}")
+    print("\nRECENT AUTHENTICATION EVIDENCE (up to 30 events)")
+    for e in events[-30:]:
+        print(f"{e['time']} {e['outcome'].upper():8} {e['ip']:>39} user={e['user']} method={e['method']}")
+    print("\nReview original logs for context. Alerts are pattern matches, not compromise determinations.")
+    return 0
+
+if __name__=="__main__":
+    try: sys.exit(main())
+    except KeyboardInterrupt: sys.exit(130)

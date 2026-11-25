@@ -53,7 +53,9 @@ def parse_event(line, timestamp):
     if m:
         ip=valid_ip(m.group("ip"))
         if ip:
-            return {"time":timestamp.isoformat(), "ip":ip, "user":m.group("user"), "method":"unknown", "outcome":"failed", "evidence":line.rstrip()}
+            # OpenSSH may also emit a separate Failed password line for this
+            # attempt. Keep this as context, not a second failed attempt.
+            return {"time":timestamp.isoformat(), "ip":ip, "user":m.group("user"), "method":"unknown", "outcome":"invalid_user", "evidence":line.rstrip()}
     m=PAM_FAILURE.search(line)
     if m:
         ip=valid_ip(m.group("ip"))
@@ -106,7 +108,7 @@ def main():
         print(f"ERROR: {exc}",file=sys.stderr); return 2
     events=[]; unparsed=0; undated=0
     for line in lines:
-        if not re.search(r"sshd|authentication failure",line,re.I):
+        if not re.search(r"Failed |Accepted |Invalid user |authentication failure",line,re.I):
             continue
         timestamp=parse_time(line,now)
         if timestamp is None:
@@ -118,6 +120,18 @@ def main():
         elif re.search(r"Failed |Accepted |Invalid user |authentication failure",line,re.I):
             unparsed+=1
     events.sort(key=lambda e:e["time"])
+    # sshd and PAM can log the same failed attempt within a few seconds.
+    # Collapse near-identical records so one attempt is not counted twice.
+    deduplicated=[]; last_seen={}; duplicates_suppressed=0
+    for event in events:
+        key=(event["ip"],event["user"],event["outcome"])
+        stamp=dt.datetime.fromisoformat(event["time"])
+        previous=last_seen.get(key)
+        if previous is not None and (stamp-previous).total_seconds() <= 3:
+            duplicates_suppressed+=1
+            continue
+        deduplicated.append(event); last_seen[key]=stamp
+    events=deduplicated
     by_ip=defaultdict(list); by_pair=defaultdict(list)
     for event in events:
         by_ip[event["ip"]].append(event); by_pair[(event["ip"],event["user"])].append(event)
@@ -141,19 +155,22 @@ def main():
     if args.json:
         print(json.dumps({"host":__import__("socket").gethostname(),"generated_utc":now.isoformat(),
           "window_hours":args.hours,"source":source,"events":events,"alerts":alerts,
-          "unparsed_auth_lines":unparsed,"undated_candidate_lines":undated,"source_errors":errors},indent=2))
+          "unparsed_auth_lines":unparsed,"undated_candidate_lines":undated,
+          "duplicate_lines_suppressed":duplicates_suppressed,"source_errors":errors},indent=2))
         return 0
     print("="*72); print("AUTHENTICATION ACTIVITY REVIEW")
     print(f"Host: {__import__('socket').gethostname()} | Generated UTC: {now.isoformat()}")
     print(f"Source: {source} | Window: last {args.hours:g} hours")
     print("="*72)
-    print(f"Parsed events: {len(events)} | Failed: {sum(e['outcome']=='failed' for e in events)} | Successful: {sum(e['outcome']=='accepted' for e in events)}")
-    print(f"Unparsed candidate lines: {unparsed} | Undated candidate lines: {undated}")
+    print(f"Parsed events: {len(events)} | Failed: {sum(e['outcome']=='failed' for e in events)} | Successful: {sum(e['outcome']=='accepted' for e in events)} | Invalid-user probes: {sum(e['outcome']=='invalid_user' for e in events)}")
+    print(f"Duplicate log lines suppressed: {duplicates_suppressed} | Unparsed candidates: {unparsed} | Undated candidates: {undated}")
     for error in errors: print(f"WARNING: could not read {error}")
     print("\nSOURCE SUMMARY")
     for ip,items in sorted(by_ip.items()):
-        failed=sum(e["outcome"]=="failed" for e in items); accepted=len(items)-failed
-        print(f"{ip:>39}  failed={failed:<5} successful={accepted:<5} users={','.join(sorted({e['user'] for e in items}))}")
+        failed=sum(e["outcome"]=="failed" for e in items)
+        accepted=sum(e["outcome"]=="accepted" for e in items)
+        invalid=sum(e["outcome"]=="invalid_user" for e in items)
+        print(f"{ip:>39}  failed={failed:<5} successful={accepted:<5} invalid-user={invalid:<5} users={','.join(sorted({e['user'] for e in items}))}")
     print("\nALERTS")
     if not alerts: print("No configured failure patterns detected. This is not proof that the host is uncompromised.")
     for a in alerts: print(f"- {a['type']}: {a['ip']} user={a['user']} ({a.get('count',a.get('failures'))} events; {a['window']}). {a['detail']}")

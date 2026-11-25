@@ -5,7 +5,6 @@ Green: solid while the configured interface is up; briefly interrupted by
 network traffic. Red: brief pulse when RX/TX dropped counters increase.
 """
 import logging
-import os
 import signal
 import threading
 import time

@@ -40,6 +40,7 @@ class Led:
         self.path = path
         self.label = label
         self.original_trigger = None
+        self.max_brightness = 1
         self.available = path.is_dir()
 
         if not self.available:
@@ -48,6 +49,9 @@ class Led:
 
         trigger_file = path / "trigger"
         try:
+            max_brightness_file = path / "max_brightness"
+            if max_brightness_file.exists():
+                self.max_brightness = max(1, int(max_brightness_file.read_text().strip()))
             if trigger_file.exists():
                 active = trigger_file.read_text().strip()
                 # The kernel marks the active trigger with square brackets.
@@ -65,7 +69,8 @@ class Led:
         if not self.available:
             return
         try:
-            (self.path / "brightness").write_text(str(value))
+            brightness = self.max_brightness if value else 0
+            (self.path / "brightness").write_text(str(brightness))
         except OSError:
             LOG.exception("Could not set %s LED brightness", self.label)
             self.available = False

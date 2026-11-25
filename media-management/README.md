@@ -8,7 +8,7 @@ Automated media-stream audit and remux tools. The normal workflow is one command
 |---|---|
 | `media_manager.py` | Runs the complete scan-and-apply workflow. |
 | `scan_media.py` | Inspects media and classifies automatic candidates, manual-review files and inspection errors. |
-| `audio_cleaner.py` | Remuxes eligible files, validates output, atomically replaces originals and calculates actual space savings. |
+| `audio_cleaner.py` | Remuxes eligible files, verifies encoded video packet SHA-256 hashes, validates output, atomically replaces originals and calculates actual space savings. |
 | `setup_wsl_smb.sh` | Interactively discovers or accepts an SMB server, lists shares and mounts the selected share for WSL2. |
 | `media.sh` | Counts MKV, MP4 and AVI files. |
 
@@ -18,7 +18,8 @@ Automated media-stream audit and remux tools. The normal workflow is one command
 - Read access to the media tree; write/delete/rename access in each source directory and write access to this script directory.
 - Enough free space in the local SSD staging directory.
 - On Windows, set `MEDIA_ROOT` to a mapped drive or UNC path before running. On Linux, the default media root remains `/media`.
-- Confirm the intended media share is mounted and accessible before running. The scripts cannot distinguish an empty mountpoint from the intended mounted volume.
+- In WSL2, the manager verifies that `MEDIA_ROOT` is inside a mounted CIFS/SMB share and checks write/delete access before scanning. It refuses to run against an unmounted local mountpoint.
+- A run lock prevents two manager instances from scanning/replacing files concurrently.
 - No backups are created. The validated remux is staged, checked, copied to a temporary file beside the source, and atomically replaced. This protects against partial replacement, not against later data loss.
 
 ## Automated workflow
@@ -55,7 +56,7 @@ The manager:
 3. Processes only files with a positively identified English audio track where at least one audio or subtitle stream can be removed under the rules below.
 4. Leaves files without a positively identified English audio track in the manual-review queue.
 5. Continues processing unaffected candidates when individual files fail inspection.
-6. Validates each remux and replaces the original only when the output is smaller.
+6. Validates each remux, compares SHA-256 hashes of every encoded video stream's packet data between the staged source and remux, then verifies the network-side staged copy before replacing the original only when the output is smaller.
 7. Writes `remux_report.txt` and the combined `media_run_report.txt`.
 
 No dry-run approval is required for the automated command. The cleaner's standalone default remains dry-run; the manager explicitly invokes `--apply`.
@@ -97,7 +98,7 @@ Keep `MEDIA_BUFFER` inside WSL's Linux filesystem (for example, `~/remux_buffer`
 - If no English subtitle track is positively tagged, all subtitle tracks are retained.
 - MKV attachments and data streams are retained.
 - Metadata and chapters are copied; streams are not re-encoded.
-- A file is replaced only if FFprobe validation passes, the source fingerprint is unchanged, and the remuxed output is smaller than the original. Otherwise the original remains untouched.
+- A file is replaced only if FFprobe validation passes, every retained video stream's encoded packet SHA-256 matches the staged source, the source fingerprint is unchanged, the network-side replacement copy passes the same checks, and the remuxed output is smaller than the original. Otherwise the original remains untouched.
 
 Language tags include `eng`, `en`, `english` and regional forms beginning `en-`. Missing or ambiguous tags are not assumed to be English.
 
@@ -146,4 +147,4 @@ MEDIA_ROOT=/path/to/media ./media.sh
 
 ## Limitations
 
-Output validation confirms FFprobe can read the output and that expected stream counts match; it is not a full decode or playback test. The completed temporary copy on the share is probed before replacement; after the same-directory replacement, the final path and file size are checked before counting reclaimed space. File fingerprints use size and modification time rather than cryptographic hashes. Windows/SMB replacement can fail when another process has the file open or the share denies delete/rename access; in that case the original is left in place. On SMB, the replacement may inherit the containing directory/share ACL rather than preserving an explicit per-file ACL. Test this against a representative folder before running across the full library. Non-MKV container-specific stream types other than video/audio/subtitle are not explicitly mapped. The workflow is manually launchable; no recurring scheduler is installed by these scripts.
+Output validation confirms FFprobe can read the output and that expected stream counts match. The SHA-256 comparison verifies the encoded video packet payloads are unchanged by remuxing; it does not prove that the video decodes correctly or that the source was not already corrupt. It is not a full decode or playback test. The completed temporary copy on the share is probed before replacement; after the same-directory replacement, the final path and file size are checked before counting reclaimed space. The source-change fingerprint uses size and modification time; video packet SHA-256 is used separately to prove the video payload survives the remux unchanged. Windows/SMB replacement can fail when another process has the file open or the share denies delete/rename access; in that case the original is left in place. On SMB, the replacement may inherit the containing directory/share ACL rather than preserving an explicit per-file ACL. Test this against a representative folder before running across the full library. Non-MKV container-specific stream types other than video/audio/subtitle are not explicitly mapped. The workflow is manually launchable; no recurring scheduler is installed by these scripts.

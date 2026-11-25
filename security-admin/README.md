@@ -50,7 +50,7 @@ sudo ./check-logs.sh --json          # machine-readable JSON
 sudo ./check-logs.sh --hours 12 --json
 ```
 
-The analyser prefers the systemd journal and asks it for the selected time range. If journal access/query fails, it reads current and rotated `/var/log/auth.log*` and `/var/log/secure*` files, including gzip-compressed rotations, and applies the same timestamp window. File entries without a recognised timestamp are counted as undated and excluded rather than silently mixed into the report. Unreadable files are reported as warnings.
+The analyser prefers the systemd journal and asks it for the selected time range. Traditional syslog timestamps are interpreted in the host's local timezone. If journal access/query fails, it reads current and rotated `/var/log/auth.log*` and `/var/log/secure*` files, including gzip-compressed rotations, and applies the same timestamp window. File entries without a recognised timestamp are counted as undated and excluded rather than silently mixed into the report. Unreadable files are reported as warnings.
 
 It recognises common OpenSSH accepted/failed password, public-key, keyboard-interactive, hostbased and GSSAPI authentication messages, invalid-user messages, and PAM authentication failures containing an `rhost`. It extracts the source address from the relevant SSH/PAM field and validates it as IPv4 or IPv6. It does not guess an IP from an arbitrary part of a log line.
 
@@ -74,7 +74,7 @@ Uses `ss -lntup` to show listening TCP/UDP sockets and `ss -ntup state establish
 sudo ./listusers.sh
 ```
 
-Shows sessions reported by `who -u`, then reviews accounts returned by the system's Name Service Switch (`getent passwd`). It includes all UID-0 accounts and regular accounts with UID 1000 or higher (excluding `nobody`), and prints sudo command specifications where `sudo -l -U` permits the query.
+Shows sessions reported by `who -u`, then reviews accounts returned by the system's Name Service Switch (`getent passwd`). It includes all UID-0 accounts and accounts with an interactive login shell (excluding `nobody`), and prints sudo command specifications where `sudo -l -U` permits the query.
 
 An ALL-command rule is highlighted, but restricted sudo rules can still be powerful. Review the complete sudo output, RunAs scope, command paths, tags and included sudoers policy. NSS accounts can come from local files, LDAP or other configured identity providers; they are not necessarily local accounts. This is not a complete audit of capabilities, setuid programs, groups, polkit, containers or other privilege paths.
 

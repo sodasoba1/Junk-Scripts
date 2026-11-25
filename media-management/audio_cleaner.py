@@ -252,13 +252,19 @@ def remux_one(path, rows, work_dir, apply_changes):
                 if (staged_stat.st_uid, staged_stat.st_gid) != (source_stat.st_uid, source_stat.st_gid):
                     raise RuntimeError("cannot preserve the source file's ownership")
         shutil.copystat(path, sibling_temp)
+
+        # Validate the completed copy on the network share before replacing the
+        # original. If this fails, the original is still untouched.
+        validate_output(sibling_temp, expected_counts)
+        if os.path.getsize(sibling_temp) != remuxed_size:
+            raise RuntimeError("network-side staging verification failed: copied file has the wrong size")
+
         os.replace(sibling_temp, path)
 
-        # Confirm the replacement is present and readable on the source share
-        # before reporting any space as reclaimed.
+        # Confirm the final path now refers to the expected replacement. The
+        # same-directory rename is atomic on supported filesystems/shares.
         if not os.path.isfile(path) or os.path.getsize(path) != remuxed_size:
             raise RuntimeError("replacement verification failed: final file is missing or has the wrong size")
-        validate_output(path, expected_counts)
     except Exception:
         try:
             os.unlink(sibling_temp)

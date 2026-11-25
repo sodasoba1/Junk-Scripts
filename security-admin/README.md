@@ -50,11 +50,11 @@ sudo ./check-logs.sh --json          # machine-readable JSON
 sudo ./check-logs.sh --hours 12 --json
 ```
 
-The analyser prefers the systemd journal and asks it for the selected time range. Traditional syslog timestamps are interpreted in the host's local timezone. If journal access/query fails, it reads current and rotated `/var/log/auth.log*` and `/var/log/secure*` files, including gzip-compressed rotations, and applies the same timestamp window. File entries without a recognised timestamp are counted as undated and excluded rather than silently mixed into the report. Unreadable files are reported as warnings.
+The analyser prefers the systemd journal and asks it for the selected time range. Traditional syslog timestamps are interpreted in the host's local timezone. If the journal query fails or contains no matching authentication records, it reads current and rotated `/var/log/auth.log*` and `/var/log/secure*` files, including gzip-compressed rotations, and applies the same timestamp window. File entries without a recognised timestamp are counted as undated and excluded rather than silently mixed into the report. Unreadable files are reported as warnings.
 
 It recognises common OpenSSH accepted/failed password, public-key, keyboard-interactive, hostbased and GSSAPI authentication messages, invalid-user probes (reported separately from confirmed failed attempts), and PAM authentication failures containing an `rhost`. Near-identical PAM/sshd records for the same IP, username and outcome within three seconds are suppressed to reduce duplicate counting. It extracts the source address from the relevant SSH/PAM field and validates it as IPv4 or IPv6. It does not guess an IP from an arbitrary part of a log line.
 
-The report includes per-address failed/successful counts, invalid-user probes, usernames, recent event evidence, duplicate-line suppression, unparsed/undated candidate counts and alerts for:
+The report includes per-address failed/successful counts, invalid-user probes, usernames, recent event evidence, duplicate-line suppression, unparsed/undated candidate counts, and alert timelines for:
 - At least 8 failures for the same source IP and username in a rolling 10-minute window.
 - At least 5 failures for the same source IP and username in the 30 minutes before a successful authentication.
 

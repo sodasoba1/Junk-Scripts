@@ -5,13 +5,14 @@ Green: solid while the configured interface is up; briefly interrupted by
 network traffic. Red: brief pulse when RX/TX dropped counters increase.
 """
 import logging
+import os
 import signal
 import threading
 import time
 from pathlib import Path
 
-# Configuration: replace this with the interface shown by `ip -br link`.
-IFACE = "ADD YOUR INTERFACE NAME HERE"
+# IFACE is supplied by the first-run setup script through systemd EnvironmentFile.
+IFACE = os.environ.get("IFACE", "").strip()
 LED_GREEN = Path("/sys/class/leds/ACT")
 LED_RED = Path("/sys/class/leds/PWR")
 

@@ -184,7 +184,22 @@ def remux_one(path, rows, work_dir, apply_changes):
     if source_stat.st_size != expected_size or source_stat.st_mtime_ns != expected_mtime:
         raise RuntimeError("source changed since the audit; run scan_media.py again")
 
-    source_streams = probe(path)
+    # Copy the candidate to the local SSD once. All probing, hashing and
+    # remux processing below uses this local copy; avoid rereading media data
+    # from the network share.
+    extension = os.path.splitext(path)[1] or ".media"
+    temp_input = os.path.join(work_dir, "source" + extension)
+    temp_output = os.path.join(work_dir, "remuxed" + extension)
+    shutil.copy2(path, temp_input)
+
+    copied_stat = os.stat(temp_input)
+    source_after_copy = os.stat(path)
+    if copied_stat.st_size != expected_size:
+        raise RuntimeError("staged source copy has the wrong size")
+    if (source_after_copy.st_size, source_after_copy.st_mtime_ns) != (expected_size, expected_mtime):
+        raise RuntimeError("source changed while it was being staged; run the scan again")
+
+    source_streams = probe(temp_input)
     audio_rows = [row for row in rows if row["Stream_Type"] == "audio"]
     subtitle_rows = [row for row in rows if row["Stream_Type"] == "subtitle"]
     if not audio_rows:
@@ -200,7 +215,6 @@ def remux_one(path, rows, work_dir, apply_changes):
     if not selected_indexes.issubset(actual_indexes):
         raise RuntimeError("audit stream indexes no longer match the source file")
 
-    extension = os.path.splitext(path)[1]
     is_matroska = extension.lower() == ".mkv"
     mapping = ["-map", "0:v?"]
     for index in sorted(selected_indexes):
@@ -218,18 +232,6 @@ def remux_one(path, rows, work_dir, apply_changes):
             expected_counts[stream_type] += 1
     expected_counts["audio"] = len(keep_audio)
     expected_counts["subtitle"] = len(keep_subtitles)
-
-    extension = extension or ".media"
-    temp_input = os.path.join(work_dir, "source" + extension)
-    temp_output = os.path.join(work_dir, "remuxed" + extension)
-    shutil.copy2(path, temp_input)
-
-    copied_stat = os.stat(temp_input)
-    source_after_copy = os.stat(path)
-    if copied_stat.st_size != expected_size:
-        raise RuntimeError("staged source copy has the wrong size")
-    if (source_after_copy.st_size, source_after_copy.st_mtime_ns) != (expected_size, expected_mtime):
-        raise RuntimeError("source changed while it was being staged; run the scan again")
 
     # The input copy already occupies one file-size worth of buffer space.
     required_space = os.path.getsize(temp_input) + MIN_FREE_SPACE_MARGIN
@@ -251,14 +253,14 @@ def remux_one(path, rows, work_dir, apply_changes):
         raise RuntimeError((result.stderr or f"FFmpeg exited {result.returncode}").strip()[-1000:])
 
     validate_output(temp_output, expected_counts)
-    # Hash the actual network source, not only its local staging copy. This
-    # detects a damaged/incomplete source copy as well as any altered remux.
-    source_video_hash = video_packet_hash(path)
+    # Hash both files on the local SSD. This verifies the remux preserved
+    # the staged source video without a second full read from the network.
+    source_video_hash = video_packet_hash(temp_input)
     remuxed_video_hash = video_packet_hash(temp_output)
     if source_video_hash != remuxed_video_hash:
         raise RuntimeError(
             "video packet SHA-256 mismatch after remux; original left untouched "
-            f"(source: {source_video_hash}; output: {remuxed_video_hash})"
+            f"(local source: {source_video_hash}; output: {remuxed_video_hash})"
         )
     original_size = os.path.getsize(path)
     remuxed_size = os.path.getsize(temp_output)
@@ -300,8 +302,8 @@ def remux_one(path, rows, work_dir, apply_changes):
         if os.path.getsize(sibling_temp) != remuxed_size:
             raise RuntimeError("network-side staging verification failed: copied file has the wrong size")
         network_video_hash = video_packet_hash(sibling_temp)
-        if network_video_hash != source_video_hash:
-            raise RuntimeError("network-side staging verification failed: video packet SHA-256 mismatch")
+        if network_video_hash != remuxed_video_hash:
+            raise RuntimeError("network-side staging verification failed: video packet SHA-256 mismatch against the locally validated remux")
 
         os.replace(sibling_temp, path)
 

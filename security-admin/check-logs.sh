@@ -67,7 +67,16 @@ declare -A SUCCESS_COUNT
 declare -A SCORE
 
 extract_ip() {
-  grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' || true
+  # One plausible IPv4 address is attributed to each event.
+  grep -oE '([0-9]{1,3}\\.){3}[0-9]{1,3}' |
+    awk -F. 'NF == 4 && $1 <= 255 && $2 <= 255 && $3 <= 255 && $4 <= 255' |
+    head -n 1 || true
+}
+
+count_log_lines() {
+  local count
+  count=$(printf '%s\\n' "$1" | grep -c . || true)
+  printf '%s' "$count"
 }
 
 # -------------------------------------------------
@@ -156,8 +165,8 @@ classify() {
 # -------------------------------------------------
 
 echo "Summary:"
-printf "  Failed Attempts:       %s\n" "$(echo "$FAILED_LOGS" | wc -l)"
-printf "  Successful Logins:     %s\n" "$(echo "$SUCCESS_LOGS" | wc -l)"
+printf "  Failed Attempts:       %s\n" "$(count_log_lines "$FAILED_LOGS")"
+printf "  Successful Logins:     %s\n" "$(count_log_lines "$SUCCESS_LOGS")"
 printf "  Privilege Escalations: %s\n" "$PRIV_ESC_TOTAL"
 echo
 

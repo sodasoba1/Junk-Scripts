@@ -52,7 +52,7 @@ sudo ./check-logs.sh --hours 12 --json
 
 The analyser prefers the systemd journal and asks it for the selected time range. Traditional syslog timestamps are interpreted in the host's local timezone. If the journal query fails or contains no matching authentication records, it reads current and rotated `/var/log/auth.log*` and `/var/log/secure*` files, including gzip-compressed rotations, and applies the same timestamp window. File entries without a recognised timestamp are counted as undated and excluded rather than silently mixed into the report. Unreadable files are reported as warnings.
 
-It recognises common OpenSSH accepted/failed password, public-key, keyboard-interactive, hostbased, GSSAPI and `none` authentication messages, invalid-user probes (reported separately from confirmed failed attempts), and PAM authentication failures containing an `rhost`. Near-identical PAM/sshd records for the same IP, username and outcome within three seconds are suppressed to reduce duplicate counting. It extracts the source address from the relevant SSH/PAM field and validates it as IPv4 or IPv6. It does not guess an IP from an arbitrary part of a log line.
+It recognises common OpenSSH accepted/failed password, public-key, keyboard-interactive, hostbased, GSSAPI and `none` authentication messages, invalid-user probes (reported separately from confirmed failed attempts), and PAM authentication failures containing an `rhost`. Near-identical PAM/sshd records for the same IP, username and outcome within three seconds are suppressed to reduce duplicate counting; genuinely separate retries within that short interval may therefore be merged. It extracts the source address from the relevant SSH/PAM field and validates it as IPv4 or IPv6. It does not guess an IP from an arbitrary part of a log line.
 
 The report includes per-address failed/successful counts, invalid-user probes, usernames, recent event evidence, duplicate-line suppression, unparsed/undated candidate counts, and alert timelines for:
 - At least 8 failures for the same source IP and username in a rolling 10-minute window.
@@ -60,7 +60,7 @@ The report includes per-address failed/successful counts, invalid-user probes, u
 - At least 8 invalid-user probes from one source IP in a rolling 10-minute window.
 - At least 5 failures for the same source IP and username in the 30 minutes before a successful authentication.
 
-These are deliberately transparent pattern alerts, not risk scores, probability estimates or proof of compromise. They may miss attacks that use different usernames, distributed source addresses, unsupported log formats or authentication systems outside the parsed SSH/PAM messages. Review original logs and correlate with account/session activity.
+These are deliberately transparent pattern alerts, not risk scores, probability estimates or proof of compromise. They may miss attacks that use distributed source addresses, unsupported log formats or authentication systems outside the parsed SSH/PAM messages. The three-second duplicate suppression can merge genuinely separate rapid retries. Review original logs and correlate with account/session activity.
 
 ### Network sockets
 

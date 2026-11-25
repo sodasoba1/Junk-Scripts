@@ -10,8 +10,6 @@ HERE = Path(__file__).resolve().parent
 REPORT = HERE / "media_run_report.txt"
 
 def main():
-    if os.environ.get("MEDIA_ROOT"):
-        print("NOTE: scan_media.py uses ROOT_DIRECTORY in its configuration; MEDIA_ROOT only affects media.sh.")
     scan = subprocess.run([sys.executable, str(HERE / "scan_media.py")], cwd=HERE)
     if scan.returncode:
         print("Scan could not complete. No remuxes were attempted.", file=sys.stderr)

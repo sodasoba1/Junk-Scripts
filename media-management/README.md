@@ -13,19 +13,40 @@ Automated media-stream audit and remux tools. The normal workflow is one command
 
 ## Requirements and safety
 
-- Python 3, FFmpeg (`ffmpeg` and `ffprobe`), Bash and GNU `find`.
-- Read access to the media tree; write access to source directories and this script directory.
-- Enough free space in `~/remux_buffer` for staging.
-- Confirm the intended media volume is mounted at the configured `ROOT_DIRECTORY` (default `/media`) before running. The scripts cannot distinguish an empty mountpoint from the intended mounted volume.
+- Python 3 and FFmpeg (`ffmpeg` and `ffprobe`).
+- Read access to the media tree; write/delete/rename access in each source directory and write access to this script directory.
+- Enough free space in the local SSD staging directory.
+- On Windows, set `MEDIA_ROOT` to a mapped drive or UNC path before running. On Linux, the default media root remains `/media`.
+- Confirm the intended media share is mounted and accessible before running. The scripts cannot distinguish an empty mountpoint from the intended mounted volume.
 - No backups are created. The validated remux is staged, checked, copied to a temporary file beside the source, and atomically replaced. This protects against partial replacement, not against later data loss.
 
 ## Automated workflow
 
-Run from this directory:
+Run from this directory.
+
+**Windows PowerShell — mapped drive:**
+
+```powershell
+$env:MEDIA_ROOT = 'Z:\\Media'
+$env:MEDIA_BUFFER = 'D:\\RemuxBuffer'
+py .\\media_manager.py
+```
+
+**Windows PowerShell — UNC path:**
+
+```powershell
+$env:MEDIA_ROOT = '\\\\SERVER\\Media'
+$env:MEDIA_BUFFER = 'D:\\RemuxBuffer'
+py .\\media_manager.py
+```
+
+**Linux:**
 
 ```bash
-python3 media_manager.py
+MEDIA_ROOT=/media MEDIA_BUFFER=/path/to/local-ssd/remux_buffer python3 media_manager.py
 ```
+
+`MEDIA_ROOT` accepts either a mapped drive or UNC path on Windows. `MEDIA_BUFFER` should point to a local SSD directory, not the network share.
 
 The manager:
 1. Runs a fresh scan and invalidates the previous audit.
@@ -90,10 +111,10 @@ MEDIA_ROOT=/path/to/media ./media.sh
 
 ## Configuration
 
-- Set `ROOT_DIRECTORY` in `scan_media.py` to the intended library root.
-- Set `SSD_BUFFER` in `audio_cleaner.py` to the staging directory.
+- Set `MEDIA_ROOT` to the intended library root. On Windows, this is mandatory and may be a mapped drive (for example `Z:\\Media`) or UNC path (for example `\\\\SERVER\\Media`). On Linux, it defaults to `/media`.
+- Set `MEDIA_BUFFER` to the local SSD staging directory. It defaults to `~/remux_buffer`.
 - Set `FFPROBE_TIMEOUT` in the Python scripts to change the per-file FFprobe timeout.
 
 ## Limitations
 
-Output validation confirms FFprobe can read the output and that expected stream counts match; it is not a full decode or playback test. File fingerprints use size and modification time rather than cryptographic hashes. Non-MKV container-specific stream types other than video/audio/subtitle are not explicitly mapped. The workflow is manually launchable; no recurring scheduler is installed by these scripts.
+Output validation confirms FFprobe can read the output and that expected stream counts match; it is not a full decode or playback test. After replacement, the script checks the final share-side file size and probes it again before counting reclaimed space. File fingerprints use size and modification time rather than cryptographic hashes. Windows/SMB replacement can fail when another process has the file open or the share denies delete/rename access; in that case the original is left in place. On SMB, the replacement may inherit the containing directory/share ACL rather than preserving an explicit per-file ACL. Test this against a representative folder before running across the full library. Non-MKV container-specific stream types other than video/audio/subtitle are not explicitly mapped. The workflow is manually launchable; no recurring scheduler is installed by these scripts.

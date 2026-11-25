@@ -25,6 +25,11 @@ FIELDNAMES = [
 ]
 
 
+def is_english(language):
+    value = (language or "").strip().lower().replace("_", "-")
+    return value in ("eng", "en", "english") or value.startswith("en-")
+
+
 def ffprobe_streams(path):
     """Return stream metadata or raise a useful error; never disguise failures."""
     command = [
@@ -89,9 +94,11 @@ def scan():
             scanned += 1
             full_path = os.path.join(root, name)
             try:
-                before = os.stat(full_path, follow_symlinks=True)
+                if os.path.islink(full_path):
+                    raise RuntimeError("symbolic-link media files are not eligible for remuxing")
+                before = os.stat(full_path)
                 streams = ffprobe_streams(full_path)
-                after = os.stat(full_path, follow_symlinks=True)
+                after = os.stat(full_path)
                 if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
                     raise RuntimeError("file changed while it was being scanned")
             except (OSError, RuntimeError) as exc:
@@ -110,7 +117,7 @@ def scan():
                 for stream in audio
             ]
             # Keep the original policy: one English audio track is already clean.
-            if len(audio) == 1 and languages[0] in ("eng", "en", "english"):
+            if len(audio) == 1 and is_english(languages[0]):
                 continue
 
             flagged += 1

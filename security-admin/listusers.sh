@@ -20,7 +20,7 @@ while IFS=: read -r username _ uid gid gecos home shell; do
   [[ -n "$username" ]] || continue
   if [[ "$uid" -eq 0 ]]; then
     kind="UID 0 (root-equivalent)"
-  elif [[ "$username" != "nobody" && "$shell" != */nologin && "$shell" != */false ]]; then
+  elif [[ -n "$shell" && "$username" != "nobody" && "$shell" != */nologin && "$shell" != */false ]]; then
     kind="interactive-shell account"
   else
     continue

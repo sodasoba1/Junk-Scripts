@@ -25,6 +25,31 @@ FIELDNAMES = [
 ]
 
 
+def invalidate_previous_audit():
+    """Prevent an older successful audit being applied after a failed new scan."""
+    if not os.path.isfile(CSV_PATH):
+        return
+    fd, temporary_path = tempfile.mkstemp(
+        prefix=".media_audit_stale.", dir=SCRIPT_DIR, text=True
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output, open(CSV_PATH, encoding="utf-8") as source:
+            for line in source:
+                if line.startswith("# MEDIA_AUDIT_STATE="):
+                    output.write("# MEDIA_AUDIT_STATE=STALE\\n")
+                else:
+                    output.write(line)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary_path, CSV_PATH)
+    except Exception:
+        try:
+            os.unlink(temporary_path)
+        except OSError:
+            pass
+        raise
+
+
 def is_english(language):
     value = (language or "").strip().lower().replace("_", "-")
     return value in ("eng", "en", "english") or value.startswith("en-")
@@ -71,6 +96,12 @@ def error_row(path, message):
 
 
 def scan():
+    try:
+        invalidate_previous_audit()
+    except OSError as exc:
+        print(f"ERROR: could not invalidate the previous audit: {exc}", file=sys.stderr)
+        return 1
+
     if shutil.which("ffprobe") is None:
         print("ERROR: ffprobe not found. Install FFmpeg first.", file=sys.stderr)
         return 1

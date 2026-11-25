@@ -322,6 +322,7 @@ def main():
     failures = []
     reclaimed_bytes = original_bytes = 0
     no_saving = 0
+    file_results = []
     start = time.monotonic()
 
     if dry_run:
@@ -352,6 +353,7 @@ def main():
             succeeded += 1
             original_bytes += original_size
             reclaimed_bytes += original_size - remuxed_size
+            file_results.append((path, "ESTIMATE" if dry_run else "REPLACED", original_size, remuxed_size, original_size - remuxed_size))
             if dry_run:
                 print(f"  Validated estimate: {original_size - remuxed_size} bytes; original left untouched.")
             else:
@@ -360,6 +362,7 @@ def main():
             failed += 1
             if "no space reclaimed" in str(exc):
                 no_saving += 1
+            file_results.append((path, "FAILED", "", "", 0))
             failures.append(f"{path}: {exc}")
             print(f"  FAILED: {exc}")
         finally:
@@ -393,6 +396,10 @@ def main():
         f"Duration: {duration // 3600}h {(duration % 3600) // 60}m",
         f"Audit state: {final_state}",
     ]
+    if file_results:
+        report.extend(["", "PER-FILE RESULTS:", "Path | Status | Original bytes | Remuxed bytes | Saved bytes"])
+        for item in file_results:
+            report.append(" | ".join(str(value) for value in item))
     if review_files:
         report.extend(["", "MANUAL REVIEW REQUIRED:", *sorted(review_files)])
     if scan_error_rows:

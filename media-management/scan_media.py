@@ -20,7 +20,7 @@ FFPROBE_TIMEOUT = 90
 
 FIELDNAMES = [
     "Filename", "Location", "File_Size", "File_Mtime_NS",
-    "Inspection_Status", "Stream_Index", "Stream_Type", "Language",
+    "Inspection_Status", "Action", "Stream_Index", "Stream_Type", "Language",
     "Codec", "Title", "Disposition_Default",
 ]
 
@@ -86,6 +86,7 @@ def error_row(path, message):
         "File_Size": "",
         "File_Mtime_NS": "",
         "Inspection_Status": "ERROR",
+        "Action": "ERROR",
         "Stream_Index": "",
         "Stream_Type": "ERROR",
         "Language": "",
@@ -142,24 +143,19 @@ def scan():
             subtitles = [stream for stream in streams if stream.get("codec_type") == "subtitle"]
             if not audio:
                 continue
-
-            languages = [
-                str(stream.get("tags", {}).get("language", "und")).strip().lower()
-                for stream in audio
-            ]
-            # Keep the original policy: one English audio track is already clean.
-            if len(audio) == 1 and is_english(languages[0]):
+            english_audio = [stream for stream in audio if is_english(stream.get("tags", {}).get("language", ""))]
+            action = "REVIEW" if not english_audio else "AUTO"
+            keep_audio = english_audio if english_audio else audio
+            english_subtitles = [stream for stream in subtitles if is_english(stream.get("tags", {}).get("language", ""))]
+            keep_subtitles = english_subtitles if english_subtitles else subtitles
+            if len(keep_audio) == len(audio) and len(keep_subtitles) == len(subtitles):
                 continue
-
             flagged += 1
             for stream in audio + subtitles:
                 rows.append({
-                    "Filename": name,
-                    "Location": root,
-                    "File_Size": after.st_size,
-                    "File_Mtime_NS": after.st_mtime_ns,
-                    "Inspection_Status": "OK",
-                    "Stream_Index": stream.get("index", ""),
+                    "Filename": name, "Location": root, "File_Size": after.st_size,
+                    "File_Mtime_NS": after.st_mtime_ns, "Inspection_Status": "OK",
+                    "Action": action, "Stream_Index": stream.get("index", ""),
                     "Stream_Type": stream.get("codec_type", ""),
                     "Language": str(stream.get("tags", {}).get("language", "und")).upper(),
                     "Codec": stream.get("codec_name", "unknown"),
@@ -181,7 +177,7 @@ def scan():
     )
     try:
         with os.fdopen(fd, "w", newline="", encoding="utf-8") as handle:
-            handle.write("# MEDIA_AUDIT_VERSION=2\n")
+            handle.write("# MEDIA_AUDIT_VERSION=3\n")
             handle.write("# MEDIA_AUDIT_STATE=UNPROCESSED\n")
             handle.write(f"# SCAN_ERRORS={failed}\n")
             handle.write(f"# GENERATED_AT={generated_at}\n")
@@ -205,8 +201,8 @@ def scan():
     print(f"Inspection/traversal errors: {failed}")
     print(f"Audit written to: {CSV_PATH}")
     if failed:
-        print("WARNING: resolve inspection errors before running the remux cleaner.")
-        return 1
+        print("WARNING: scan errors are recorded; unaffected AUTO candidates can still be processed.")
+        return 0
     return 0
 
 

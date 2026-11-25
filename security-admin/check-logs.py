@@ -110,6 +110,56 @@ def read_sources(now, hours):
             errors.append(f"{path}: {exc}")
     return lines, "authentication log files (timestamp-filtered)", errors
 
+def rolling_threshold(values, minutes, threshold):
+    values=sorted(values)
+    left=0
+    window=dt.timedelta(minutes=minutes)
+    for right,end in enumerate(values):
+        while left<=right and values[left] <= end-window:
+            left+=1
+        if right-left+1>=threshold:
+            return values[left],end,right-left+1
+    return None
+
+def detect_alerts(events):
+    by_ip=defaultdict(list); by_pair=defaultdict(list)
+    for event in events:
+        by_ip[event["ip"]].append(event)
+        by_pair[(event["ip"],event["user"])].append(event)
+    alerts=[]
+    for (ip,user),items in by_pair.items():
+        failures=[dt.datetime.fromisoformat(e["time"]) for e in items if e["outcome"]=="failed"]
+        successes=[dt.datetime.fromisoformat(e["time"]) for e in items if e["outcome"]=="accepted"]
+        burst=rolling_threshold(failures,10,8)
+        if burst:
+            first,last,count=burst
+            alerts.append({"type":"account_failure_burst","ip":ip,"user":user,"count":count,"window":"10 minutes",
+                           "first_seen":first.isoformat(),"last_seen":last.isoformat(),
+                           "detail":"At least 8 failed authentication events for the same account in a rolling 10-minute window."})
+        for success in successes:
+            prior=[t for t in failures if success-dt.timedelta(minutes=30)<=t<success]
+            if len(prior)>=5:
+                alerts.append({"type":"failures_then_success","ip":ip,"user":user,"failures":len(prior),"window":"30 minutes",
+                               "first_failure":min(prior).isoformat(),"successful_at":success.isoformat(),
+                               "detail":"At least 5 failures for the same source IP and username preceded a successful authentication."})
+                break
+    for ip,items in by_ip.items():
+        failures=[dt.datetime.fromisoformat(e["time"]) for e in items if e["outcome"]=="failed"]
+        burst=rolling_threshold(failures,10,15)
+        if burst:
+            first,last,count=burst
+            alerts.append({"type":"source_failure_burst","ip":ip,"count":count,"window":"10 minutes",
+                           "first_seen":first.isoformat(),"last_seen":last.isoformat(),
+                           "detail":"At least 15 failed authentication events from this source across accounts in a rolling 10-minute window."})
+        invalid=[dt.datetime.fromisoformat(e["time"]) for e in items if e["outcome"]=="invalid_user"]
+        burst=rolling_threshold(invalid,10,8)
+        if burst:
+            first,last,count=burst
+            alerts.append({"type":"invalid_user_enumeration","ip":ip,"count":count,"window":"10 minutes",
+                           "first_seen":first.isoformat(),"last_seen":last.isoformat(),
+                           "detail":"At least 8 invalid-user probes from this source in a rolling 10-minute window."})
+    return alerts
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hours",type=float,default=48,help="look-back window (default: 48 hours)")
@@ -139,25 +189,7 @@ def main():
     by_ip=defaultdict(list); by_pair=defaultdict(list)
     for event in events:
         by_ip[event["ip"]].append(event); by_pair[(event["ip"],event["user"])].append(event)
-    alerts=[]
-    for (ip,user),items in by_pair.items():
-        failures=[dt.datetime.fromisoformat(e["time"]) for e in items if e["outcome"]=="failed"]
-        successes=[dt.datetime.fromisoformat(e["time"]) for e in items if e["outcome"]=="accepted"]
-        for end in failures:
-            burst=[t for t in failures if end-dt.timedelta(minutes=10)<t<=end]
-            if len(burst)>=8:
-                alerts.append({"type":"failure_burst","ip":ip,"user":user,"count":len(burst),"window":"10 minutes",
-                               "first_seen":min(burst).isoformat(),"last_seen":max(burst).isoformat(),
-                               "detail":"At least 8 failed SSH/PAM authentication events in a rolling 10-minute window."})
-                break
-        if successes:
-            for success in successes:
-                prior=[t for t in failures if success-dt.timedelta(minutes=30)<=t<success]
-                if len(prior)>=5:
-                    alerts.append({"type":"failures_then_success","ip":ip,"user":user,"failures":len(prior),"window":"30 minutes",
-                                   "first_failure":min(prior).isoformat(),"successful_at":success.isoformat(),
-                                   "detail":"At least 5 failures for the same source IP and username preceded a successful authentication."})
-                    break
+    alerts=detect_alerts(events)
     if args.json:
         print(json.dumps({"host":__import__("socket").gethostname(),"generated_utc":now.isoformat(),
           "window_hours":args.hours,"source":source,"events":events,"alerts":alerts,

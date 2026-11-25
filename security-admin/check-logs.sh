@@ -18,7 +18,7 @@ NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 echo "================================================="
 echo " Home Lab Authentication Monitor"
 echo " Host: $HOST"
-echo " Window: last 48 hours"
+echo " Log source and time range are shown below."
 echo " Generated (UTC): $NOW"
 echo "================================================="
 echo
@@ -41,6 +41,14 @@ if [[ ${#LOG_FILES[@]} -eq 0 ]]; then
     exit 1
   fi
 fi
+
+if [[ "$USE_JOURNAL" == true ]]; then
+  echo "Log source: systemd journal (last 48 hours)"
+else
+  echo "Log source: authentication log files (current and rotated; not time-filtered)"
+  echo "File-log search is limited to the last 5,000 matching lines per event pattern."
+fi
+echo
 
 search_logs() {
   local pattern="$1"
@@ -108,8 +116,8 @@ PRIV_ESC_TOTAL=$(($(count_log_lines "$SUDO_LOGS") + $(count_log_lines "$SU_LOGS"
 # -------------------------------------------------
 # Philosophy:
 # - Internet scanners are normal.
-# - Real risk = fail→success or internal suspicious access.
-# - High brute counts matter less unless followed by success.
+# - Same-IP failed and successful events increase the score; event order is not checked.
+# - High failure counts add a separate threshold bonus.
 
 is_private_ip() {
   [[ "$1" =~ ^10\. ]] ||
@@ -129,7 +137,7 @@ done
 for ip in "${!SUCCESS_COUNT[@]}"; do
   SCORE["$ip"]=$(( ${SCORE["$ip"]:-0} + 20 ))
 
-  # Fail → Success pattern (very suspicious)
+  # Same IP appears in both sets; timestamps/order are not correlated.
   if [[ -n "${FAIL_COUNT[$ip]:-}" ]]; then
     SCORE["$ip"]=$(( SCORE["$ip"] + 50 ))
   fi
@@ -186,8 +194,8 @@ echo "------------------------------------------------------------"
 echo
 
 echo "Home Lab Guidance:"
-echo " - LOW: internet noise."
-echo " - MEDIUM: brute force source."
-echo " - HIGH: possible credential compromise."
-echo " - CRITICAL: high heuristic score; investigate the underlying events."
+echo " - LOW: low heuristic score; still review unexpected events."
+echo " - MEDIUM: moderate heuristic score; inspect the matching events."
+echo " - HIGH: elevated heuristic score; investigate the source and context."
+echo " - CRITICAL: very high heuristic score; investigate promptly."
 echo

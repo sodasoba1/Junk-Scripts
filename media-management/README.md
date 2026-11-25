@@ -1,132 +1,99 @@
 # Media Management
 
-Tools for auditing media streams, safely remuxing selected audio/subtitle tracks, and counting common video formats.
+Automated media-stream audit and remux tools. The normal workflow is one command: scan the library, automatically remux only positively identified safe candidates, then review the reports and flagged files.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `scan_media.py` | Recursively inspects media under `/media` with FFprobe and creates a versioned `media_audit.csv`. |
-| `audio_cleaner.py` | Reads that audit, keeps English audio/subtitles where available, stream-copies the selected streams, validates the result, and optionally replaces the source safely. |
-| `media.sh` | Counts MKV, MP4 and AVI files recursively, without case-sensitive extension matching. |
+| `media_manager.py` | Runs the complete scan-and-apply workflow. |
+| `scan_media.py` | Inspects media and classifies automatic candidates, manual-review files and inspection errors. |
+| `audio_cleaner.py` | Remuxes eligible files, validates output, atomically replaces originals and calculates actual space savings. |
+| `media.sh` | Counts MKV, MP4 and AVI files. |
 
-## Requirements
+## Requirements and safety
 
-- Python 3.
-- FFmpeg, including `ffmpeg` and `ffprobe`.
-- Bash and GNU `find` for `media.sh`.
-- Read access to the media tree.
-- Write access to each source media directory when applying remuxes.
-- Write access to this script directory for the audit and report.
-- Enough free space in `~/remux_buffer` for a staged input and remuxed output. The cleaner checks available space before invoking FFmpeg.
+- Python 3, FFmpeg (`ffmpeg` and `ffprobe`), Bash and GNU `find`.
+- Read access to the media tree; write access to source directories and this script directory.
+- Enough free space in `~/remux_buffer` for staging.
+- Confirm the intended media volume is mounted at the configured `ROOT_DIRECTORY` (default `/media`) before running. The scripts cannot distinguish an empty mountpoint from the intended mounted volume.
+- No backups are created. The validated remux is staged, checked, copied to a temporary file beside the source, and atomically replaced. This protects against partial replacement, not against later data loss.
 
-The scanner and counter default to `/media`. Make sure the intended media volume is mounted there before scanning; the scripts verify that the directory exists, but cannot determine whether it is the expected mounted volume. A new scan marks any previous audit `STALE` before starting, so a failed or interrupted scan cannot leave an older audit available for accidental application.
+## Automated workflow
 
-## Workflow
+Run from this directory:
 
-Run these commands from the `media-management` directory.
+```bash
+python3 media_manager.py
+```
 
-### 1. Scan
+The manager:
+1. Runs a fresh scan and invalidates the previous audit.
+2. Records per-file stream metadata, file size and nanosecond modification time.
+3. Processes only files with a positively identified English audio track where at least one audio or subtitle stream can be removed under the rules below.
+4. Leaves files without a positively identified English audio track in the manual-review queue.
+5. Continues processing unaffected candidates when individual files fail inspection.
+6. Validates each remux and replaces the original only when the output is smaller.
+7. Writes `remux_report.txt` and the combined `media_run_report.txt`.
+
+No dry-run approval is required for the automated command. The cleaner's standalone default remains dry-run; the manager explicitly invokes `--apply`.
+
+## Track-selection rules
+
+- All video streams are retained.
+- If one or more English audio tracks are tagged, all English audio tracks are retained and non-English audio tracks are removed.
+- If no English audio track is positively tagged, the file is not automatically changed; it is flagged for manual review.
+- If one or more English subtitle tracks are tagged, all English subtitle tracks are retained and non-English subtitle tracks are removed.
+- If no English subtitle track is positively tagged, all subtitle tracks are retained.
+- MKV attachments and data streams are retained.
+- Metadata and chapters are copied; streams are not re-encoded.
+- A file is replaced only if FFprobe validation passes, the source fingerprint is unchanged, and the remuxed output is smaller than the original. Otherwise the original remains untouched.
+
+Language tags include `eng`, `en`, `english` and regional forms beginning `en-`. Missing or ambiguous tags are not assumed to be English.
+
+## Reports and manual review
+
+- `media_audit.csv`: detailed scan data and action classification (`AUTO`, `REVIEW`, or `ERROR`).
+- `remux_report.txt`: per-run processing summary, reclaimed bytes, failures and manual-review paths.
+- `media_run_report.txt`: combined run report.
+
+The report distinguishes actual reclaimed space from estimates. In automatic apply mode, reclaimed bytes are counted only after a smaller validated output has replaced the original. Files with no size reduction, validation failures, source changes, or processing errors are not counted as reclaimed.
+
+Inspect the `MANUAL REVIEW REQUIRED` and `FAILURES` sections after automation completes. Review scan-error rows in the audit as well. A failed file does not prevent other eligible files from being processed. Generate a fresh audit on every run; `IN_PROGRESS`, `PARTIAL` and `PROCESSED` audits are not reusable.
+
+## Individual commands
+
+Scan only:
 
 ```bash
 python3 scan_media.py
 ```
 
-The scanner:
-
-- Recursively checks `.mkv`, `.mp4`, `.avi`, `.mov` and `.m4v` files, including uppercase extensions.
-- Skips files with no audio.
-- Skips a file when it has exactly one English audio stream. English identifiers include `eng`, `en`, `english` and regional forms such as `en-US`.
-- Flags other files containing audio and records their audio/subtitle stream metadata.
-- Records each flagged file's size and nanosecond modification time so the cleaner can detect stale audit entries.
-- Records FFprobe failures and traversal errors instead of silently treating them as files without audio.
-- Writes the new CSV to a temporary file and atomically publishes it only after the scan completes.
-
-The CSV contains a version header, processing state, scan-error count and stream rows. If any inspection or traversal errors occur, the scanner exits unsuccessfully and the cleaner refuses to use that audit. Resolve the underlying problem and scan again.
-
-### 2. Review the audit
-
-Open `media_audit.csv` and inspect the files and tracks marked for remuxing. The cleaner only accepts the current version-2 audit generated by `scan_media.py`.
-
-The cleaner checks the recorded file size and modification time before remuxing. If a source has changed since the scan, it is skipped and reported; run a fresh scan before proceeding.
-
-### 3. Run a dry run
+Dry-run the cleaner against the current audit (no source replacement):
 
 ```bash
 python3 audio_cleaner.py
 ```
 
-This is the default mode. It stages each file in `~/remux_buffer`, runs FFmpeg, and validates the remuxed output, but does not replace or otherwise modify the original media. The audit remains `UNPROCESSED`.
-
-Review the terminal output and `remux_report.txt`. A successful dry run means FFmpeg produced an output whose expected video, selected audio/subtitle and (for MKV) attachment/data stream counts passed validation. It does not guarantee playback compatibility with every media player.
-
-### 4. Apply the remuxes
-
-Only after reviewing a successful dry run:
+Apply the current audit:
 
 ```bash
 python3 audio_cleaner.py --apply
 ```
 
-For each file, the cleaner:
-
-1. Rechecks the source against its audit fingerprint.
-2. Selects English audio streams if any exist; otherwise it keeps all audio streams.
-3. Selects English subtitle streams if any exist; otherwise it keeps all subtitle streams.
-4. Maps all video streams. For MKV files it also maps attachment and data streams.
-5. Uses stream copy (`-c copy`); it does not re-encode audio or video.
-6. Preserves container metadata and chapters and does not force new default-track dispositions.
-7. Probes the output and checks the expected stream counts.
-8. Rechecks that the source has not changed during processing.
-9. Copies the validated output to a temporary file in the source directory and uses `os.replace()` for an atomic replacement on that filesystem.
-
-The original is not removed before the replacement is ready. If a step fails before replacement, the original remains untouched. Keep an independent backup of valuable media; atomic replacement protects against partial replacement, but it is not a backup.
-
-### 5. Read the report and audit state
-
-The cleaner writes `remux_report.txt` with the run mode, successful and failed file counts, duration and failure details.
-
-Audit states:
-
-| State | Meaning |
-|---|---|
-| `UNPROCESSED` | Fresh audit, ready for a dry run or apply run. |
-| `STALE` | A new scan has started or could not complete. Run the scanner again successfully before remuxing. |
-| `IN_PROGRESS` | An apply run was interrupted or could not finish updating its state. Inspect the report and run a fresh scan before retrying. |
-| `PROCESSED` | All files in the audit were successfully processed. Generate a new scan for another run. |
-| `PARTIAL` | At least one file failed during apply. Some other files may already have been replaced. Review the report and generate a fresh scan before retrying. |
-
-The cleaner deliberately refuses to reuse `IN_PROGRESS`, `PARTIAL` or `PROCESSED` audits. A new scan establishes fresh stream indexes and file fingerprints.
-
-## Media counter
-
-Count files under the default `/media` root:
+Count common media types:
 
 ```bash
 ./media.sh
-```
-
-Use a different root without editing the script:
-
-```bash
 MEDIA_ROOT=/path/to/media ./media.sh
 ```
 
-The counter recognises `.mkv`, `.mp4` and `.avi` case-insensitively. It exits with an error if the root is missing or a count cannot be completed; it does not present a failed count as a valid zero.
-
 ## Configuration
 
-- Change `ROOT_DIRECTORY` near the top of `scan_media.py` to use a different scanner root.
-- Set `MEDIA_ROOT` when running `media.sh` to override its root.
-- Change `SSD_BUFFER` near the top of `audio_cleaner.py` to select a different staging location.
-- `FFPROBE_TIMEOUT` controls the per-file FFprobe timeout in both Python scripts.
+- Set `ROOT_DIRECTORY` in `scan_media.py` to the intended library root.
+- Set `SSD_BUFFER` in `audio_cleaner.py` to the staging directory.
+- Set `FFPROBE_TIMEOUT` in the Python scripts to change the per-file FFprobe timeout.
 
-## Limitations and safeguards
+## Limitations
 
-- The scanner records audio and subtitle streams for flagged files; files with no audio are skipped.
-- Language selection is based on stream language tags. Missing or unrecognised tags are not assumed to be English.
-- The cleaner preserves all video streams, selected audio/subtitle streams, and MKV attachment/data streams. Other container-specific stream types are not explicitly mapped.
-- Some codecs or stream combinations cannot be copied into every container. FFmpeg failures are reported and the source is left unchanged.
-- Output validation checks that the output is readable by FFprobe and that expected stream counts match. It does not perform a full decode or playback test.
-- File fingerprints use size and modification time. They detect ordinary changes, but are not cryptographic content hashes.
-- A process or power failure after an atomic replacement but before the audit state is updated can leave the audit marked `IN_PROGRESS`; generate a fresh scan before another apply run.
+Output validation confirms FFprobe can read the output and that expected stream counts match; it is not a full decode or playback test. File fingerprints use size and modification time rather than cryptographic hashes. Non-MKV container-specific stream types other than video/audio/subtitle are not explicitly mapped. The workflow is manually launchable; no recurring scheduler is installed by these scripts.

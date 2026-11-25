@@ -62,7 +62,7 @@ The report contains:
 - A count of matched sudo/su log entries, shown as host-level context.
 - An IPv4 table with failed count, successful count, heuristic score and risk label.
 
-**Important time-window distinction:** the systemd journal fallback uses the 48-hour window. The file-log path searches the available current and rotated authentication logs and limits each matched search to its last 5,000 lines; it does not filter those file entries by timestamp. Consequently, file-mode results may include events older than 48 hours. Treat the displayed “last 48 hours” label as exact only when the journal fallback is in use.
+**Important time-window distinction:** the script identifies the selected source in its output. The systemd journal fallback uses the 48-hour window. The file-log path searches the available current and rotated authentication logs and limits each matched search to its last 5,000 lines; it does not filter those file entries by timestamp. Consequently, file-mode results may include events older than 48 hours. Only journal-mode results are bounded to the stated 48-hour period.
 
 The parser extracts the first plausible IPv4 address from each matching event. It does not parse IPv6 addresses. Failed-event matching includes `Failed password`, `Invalid user` and `authentication failure`; successful-event matching includes `Accepted password` and `Accepted publickey`.
 

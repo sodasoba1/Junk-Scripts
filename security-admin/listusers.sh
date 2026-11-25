@@ -29,7 +29,7 @@ while IFS=: read -r username _ uid gid gecos home shell; do
   if [[ "$uid" -eq 0 ]]; then
     echo "Privilege: UID 0; this account has root identity."
   else
-    if policy=$(sudo -n -l -U "$username" 2>&1); then
+    if policy=$(LC_ALL=C sudo -n -l -U "$username" 2>&1); then
       printf '%s\n' "$policy" | awk '
         /may run the following commands/ { in_rules=1; next }
         in_rules && /^[[:space:]]*\(/ { print "Sudo rule: " $0; found=1 }

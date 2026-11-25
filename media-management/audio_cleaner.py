@@ -21,6 +21,7 @@ SSD_BUFFER = os.path.normpath(os.path.expandvars(os.path.expanduser(
 )))
 MIN_FREE_SPACE_MARGIN = 64 * 1024 * 1024
 FFPROBE_TIMEOUT = 90
+FFMPEG_TIMEOUT = 12 * 60 * 60
 # ----------------------------------------
 
 RESET = "\033[0m"
@@ -132,6 +133,33 @@ def is_english(language):
     return value in ("eng", "en", "english") or value.startswith("en-")
 
 
+def video_packet_hash(path):
+    """SHA-256 of each encoded video stream's packet payload, without decoding."""
+    command = [
+        "ffmpeg", "-nostdin", "-v", "error", "-i", path,
+        "-map", "0:v", "-c", "copy", "-f", "streamhash",
+        "-hash", "sha256", "-",
+    ]
+    try:
+        result = subprocess.run(
+            command, capture_output=True, text=True, timeout=FFMPEG_TIMEOUT,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"video packet hashing exceeded {FFMPEG_TIMEOUT}s") from exc
+    except OSError as exc:
+        raise RuntimeError(f"could not run FFmpeg video hash: {exc}") from exc
+    if result.returncode:
+        raise RuntimeError(
+            "video packet hashing failed: " +
+            (result.stderr or f"FFmpeg exited {result.returncode}").strip()[-800:]
+        )
+    digest = result.stdout.strip()
+    if not digest or "SHA256=" not in digest:
+        raise RuntimeError("FFmpeg did not return a valid per-stream SHA-256 hash")
+    return digest
+
+
 def validate_output(output_path, expected_counts):
     if not os.path.isfile(output_path) or os.path.getsize(output_path) == 0:
         raise RuntimeError("FFmpeg produced no usable output file")
@@ -168,7 +196,8 @@ def remux_one(path, rows, work_dir, apply_changes):
     keep_subtitles = english_subtitles if english_subtitles else subtitle_rows
 
     selected_indexes = {int(row["Stream_Index"]) for row in keep_audio + keep_subtitles}
-    if any(index < 0 or index >= len(source_streams) for index in selected_indexes):
+    actual_indexes = {int(stream["index"]) for stream in source_streams if "index" in stream}
+    if not selected_indexes.issubset(actual_indexes):
         raise RuntimeError("audit stream indexes no longer match the source file")
 
     extension = os.path.splitext(path)[1]
@@ -196,7 +225,10 @@ def remux_one(path, rows, work_dir, apply_changes):
     shutil.copy2(path, temp_input)
 
     copied_stat = os.stat(temp_input)
-    if copied_stat.st_size != expected_size or copied_stat.st_mtime_ns != expected_mtime:
+    source_after_copy = os.stat(path)
+    if copied_stat.st_size != expected_size:
+        raise RuntimeError("staged source copy has the wrong size")
+    if (source_after_copy.st_size, source_after_copy.st_mtime_ns) != (expected_size, expected_mtime):
         raise RuntimeError("source changed while it was being staged; run the scan again")
 
     # The input copy already occupies one file-size worth of buffer space.
@@ -219,12 +251,19 @@ def remux_one(path, rows, work_dir, apply_changes):
         raise RuntimeError((result.stderr or f"FFmpeg exited {result.returncode}").strip()[-1000:])
 
     validate_output(temp_output, expected_counts)
+    source_video_hash = video_packet_hash(temp_input)
+    remuxed_video_hash = video_packet_hash(temp_output)
+    if source_video_hash != remuxed_video_hash:
+        raise RuntimeError(
+            "video packet SHA-256 mismatch after remux; original left untouched "
+            f"(source: {source_video_hash}; output: {remuxed_video_hash})"
+        )
     original_size = os.path.getsize(path)
     remuxed_size = os.path.getsize(temp_output)
     if remuxed_size >= original_size:
         raise RuntimeError(f"no space reclaimed (original {original_size} bytes, remuxed {remuxed_size} bytes); original left untouched")
     if not apply_changes:
-        return original_size, remuxed_size
+        return original_size, remuxed_size, source_video_hash
 
     # Recheck the original immediately before replacement to avoid overwriting concurrent edits.
     latest_stat = os.stat(path)
@@ -258,6 +297,9 @@ def remux_one(path, rows, work_dir, apply_changes):
         validate_output(sibling_temp, expected_counts)
         if os.path.getsize(sibling_temp) != remuxed_size:
             raise RuntimeError("network-side staging verification failed: copied file has the wrong size")
+        network_video_hash = video_packet_hash(sibling_temp)
+        if network_video_hash != source_video_hash:
+            raise RuntimeError("network-side staging verification failed: video packet SHA-256 mismatch")
 
         os.replace(sibling_temp, path)
 
@@ -367,15 +409,15 @@ def main():
         work_dir = None
         try:
             work_dir = tempfile.mkdtemp(prefix=f"remux-{index:06d}-", dir=SSD_BUFFER)
-            original_size, remuxed_size = remux_one(path, stream_rows, work_dir, apply_changes=not dry_run)
+            original_size, remuxed_size, video_hash = remux_one(path, stream_rows, work_dir, apply_changes=not dry_run)
             succeeded += 1
             original_bytes += original_size
             reclaimed_bytes += original_size - remuxed_size
-            file_results.append((path, "ESTIMATE" if dry_run else "REPLACED", original_size, remuxed_size, original_size - remuxed_size))
+            file_results.append((path, "ESTIMATE" if dry_run else "REPLACED", original_size, remuxed_size, original_size - remuxed_size, video_hash))
             if dry_run:
-                print(f"  Validated estimate: {original_size - remuxed_size} bytes; original left untouched.")
+                print(f"  Validated estimate: {original_size - remuxed_size} bytes; video packet SHA-256 matched; original left untouched.")
             else:
-                print(f"  Reclaimed: {original_size - remuxed_size} bytes; original replaced atomically.")
+                print(f"  Reclaimed: {original_size - remuxed_size} bytes; video packet SHA-256 matched; original replaced atomically.")
         except Exception as exc:
             failed += 1
             if "no space reclaimed" in str(exc):
@@ -415,7 +457,7 @@ def main():
         f"Audit state: {final_state}",
     ]
     if file_results:
-        report.extend(["", "PER-FILE RESULTS:", "Path | Status | Original bytes | Remuxed bytes | Saved bytes"])
+        report.extend(["", "PER-FILE RESULTS:", "Path | Status | Original bytes | Remuxed bytes | Saved bytes | Video packet SHA-256 (per stream)"])
         for item in file_results:
             report.append(" | ".join(str(value) for value in item))
     if review_files:

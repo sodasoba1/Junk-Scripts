@@ -20,8 +20,8 @@ while IFS=: read -r username _ uid gid gecos home shell; do
   [[ -n "$username" ]] || continue
   if [[ "$uid" -eq 0 ]]; then
     kind="UID 0 (root-equivalent)"
-  elif [[ "$uid" -ge 1000 && "$username" != "nobody" ]]; then
-    kind="regular UID account"
+  elif [[ "$username" != "nobody" && "$shell" != */nologin && "$shell" != */false ]]; then
+    kind="interactive-shell account"
   else
     continue
   fi
@@ -35,10 +35,18 @@ while IFS=: read -r username _ uid gid gecos home shell; do
         in_rules && /^[[:space:]]*\(/ { print "Sudo rule: " $0; found=1 }
         END { if (!found) print "Sudo rule: no command specification reported (inspect sudo output if needed)." }
       '
-      if printf '%s\n' "$policy" | grep -Eq '^[[:space:]]*\([^)]*\)[[:space:]]*(ALL|[A-Z_]+:[[:space:]]*ALL)[[:space:]]*$'; then
+      if printf '%s\\n' "$policy" | awk '
+        /^[[:space:]]*\\(/ {
+          line=$0
+          sub(/^[[:space:]]*\\([^)]*\\)[[:space:]]*/, "", line)
+          sub(/^([A-Z_]+:[[:space:]]*)+/, "", line)
+          if (line == "ALL") found=1
+        }
+        END { exit !found }
+      '; then
         echo "Classification: ALL-command rule detected; review RunAs scope and tags above."
       else
-        echo "Classification: no simple ALL-command rule detected; restricted rules may still grant powerful access."
+        echo "Classification: no ALL-command rule detected; restricted rules may still grant powerful access."
       fi
     else
       echo "Sudo policy query unavailable: $policy"

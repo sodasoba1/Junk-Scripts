@@ -43,5 +43,17 @@ class ParserTests(unittest.TestCase):
         b={**base,"time":"2026-11-25T10:00:05+00:00"}
         result,count=mod.deduplicate_events([a,b])
         self.assertEqual((len(result),count),(2,0))
+    def test_rolling_threshold_uses_actual_time_window(self):
+        values=[self.now+dt.timedelta(minutes=n) for n in (0,1,2,3,4,5,6,7)]
+        self.assertEqual(mod.rolling_threshold(values,10,8)[2],8)
+        self.assertIsNone(mod.rolling_threshold(values,5,8))
+    def test_invalid_user_enumeration_alert(self):
+        events=[{"ip":"203.0.113.9","user":f"guess{i}","outcome":"invalid_user",
+                 "time":(self.now+dt.timedelta(seconds=i*20)).isoformat()} for i in range(8)]
+        self.assertIn("invalid_user_enumeration",{a["type"] for a in mod.detect_alerts(events)})
+    def test_password_spray_across_accounts_alert(self):
+        events=[{"ip":"203.0.113.9","user":f"user{i}","outcome":"failed",
+                 "time":(self.now+dt.timedelta(seconds=i*20)).isoformat()} for i in range(15)]
+        self.assertIn("source_failure_burst",{a["type"] for a in mod.detect_alerts(events)})
 
 if __name__=="__main__": unittest.main()

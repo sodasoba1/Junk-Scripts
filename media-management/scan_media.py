@@ -36,7 +36,7 @@ def invalidate_previous_audit():
         with os.fdopen(fd, "w", encoding="utf-8") as output, open(CSV_PATH, encoding="utf-8") as source:
             for line in source:
                 if line.startswith("# MEDIA_AUDIT_STATE="):
-                    output.write("# MEDIA_AUDIT_STATE=STALE\\n")
+                    output.write("# MEDIA_AUDIT_STATE=STALE\n")
                 else:
                     output.write(line)
             output.flush()
@@ -169,6 +169,13 @@ def scan():
     if traversal_errors:
         failed += len(traversal_errors)
         for message in traversal_errors:
+            rows.append({
+                "Filename": "", "Location": ROOT_DIRECTORY, "File_Size": "",
+                "File_Mtime_NS": "", "Inspection_Status": "ERROR",
+                "Action": "ERROR", "Stream_Index": "", "Stream_Type": "ERROR",
+                "Language": "", "Codec": "", "Title": message,
+                "Disposition_Default": "",
+            })
             print(f"ERROR: directory traversal: {message}", file=sys.stderr)
 
     # Publish only a complete CSV; an interrupted scan leaves the previous audit intact.

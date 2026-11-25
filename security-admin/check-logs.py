@@ -100,7 +100,7 @@ def read_sources(now, hours):
     paths=sorted(set(p for p in paths if p.is_file()), key=lambda p:(p.stat().st_mtime,p.name))
     if not paths:
         raise RuntimeError(f"No readable authentication source. Journal fallback: {journal_error}")
-    lines=[]; errors=[]
+    lines=[]; errors=[f"Journal fallback: {journal_error}"]
     for path in paths:
         try:
             opener=gzip.open if path.name.endswith(".gz") else open

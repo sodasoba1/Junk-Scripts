@@ -202,7 +202,7 @@ def main():
     print("="*72)
     print(f"Parsed events: {len(events)} | Failed: {sum(e['outcome']=='failed' for e in events)} | Successful: {sum(e['outcome']=='accepted' for e in events)} | Invalid-user probes: {sum(e['outcome']=='invalid_user' for e in events)}")
     print(f"Duplicate log lines suppressed: {duplicates_suppressed} | Unparsed candidates: {unparsed} | Undated candidates: {undated}")
-    for error in errors: print(f"WARNING: could not read {error}")
+    for error in errors: print(f"WARNING: {error}")
     print("\nSOURCE SUMMARY")
     for ip,items in sorted(by_ip.items()):
         failed=sum(e["outcome"]=="failed" for e in items)

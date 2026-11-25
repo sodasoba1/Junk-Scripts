@@ -24,9 +24,15 @@ done
 printf 'LED checks passed:\n  Green: %s\n  Red:   %s\n' "$LED_GREEN" "$LED_RED"
 
 # Prefer the interface selected by the kernel for the default route.
+# Prefer an IPv4 default route; fall back to IPv6 when the host is IPv6-only.
 detected_iface="$(ip -o route show default 2>/dev/null | awk '
     { for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }
 ')"
+if [[ -z "$detected_iface" ]]; then
+    detected_iface="$(ip -o -6 route show default 2>/dev/null | awk '
+        { for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }
+    ')"
+fi
 
 # Build a list of present, non-loopback interfaces.
 mapfile -t interfaces < <(
@@ -49,6 +55,7 @@ if [[ -n "$detected_iface" && -d "/sys/class/net/$detected_iface" ]]; then
 fi
 
 if [[ -z "$detected_iface" ]]; then
+    [[ -t 0 ]] || fail "No default-route interface was found and no interactive terminal is available. Rerun this script interactively to select an interface."
     printf '\nAvailable interfaces:\n'
     select choice in "${interfaces[@]}"; do
         if [[ -n "${choice:-}" ]]; then

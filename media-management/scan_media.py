@@ -1,103 +1,178 @@
 #!/usr/bin/env python3
-import os
-import subprocess
-import json
+"""Build a reliable, atomic media stream audit for audio_cleaner.py."""
+
 import csv
+import json
+import os
 import shutil
-from datetime import datetime
+import subprocess
+import sys
+import tempfile
+from datetime import datetime, timezone
 
 # ---------------- CONFIG ----------------
 ROOT_DIRECTORY = "/media"
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(SCRIPT_DIR, "media_audit.csv")
-
 VIDEO_EXTENSIONS = (".mkv", ".mp4", ".avi", ".mov", ".m4v")
+FFPROBE_TIMEOUT = 90
+AUDIT_VERSION = 2
 # ----------------------------------------
 
+FIELDNAMES = [
+    "Filename", "Location", "File_Size", "File_Mtime_NS",
+    "Inspection_Status", "Stream_Index", "Stream_Type", "Language",
+    "Codec", "Title", "Disposition_Default",
+]
+
+
 def ffprobe_streams(path):
+    """Return stream metadata or raise a useful error; never disguise failures."""
     cmd = [
-        "ffprobe", "-v", "quiet",
-        "-print_format", "json",
-        "-show_streams",
-        path
+        "ffprobe", "-v", "error", "-print_format", "json",
+        "-show_streams", path,
     ]
     try:
-        out = subprocess.check_output(cmd)
-        return json.loads(out).get("streams", [])
-    except Exception:
-        return []
+        result = subprocess.run(
+            cmd, check=False, capture_output=True, text=True,
+            timeout=FFPROBE_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"ffprobe timed out after {FFPROBE_TIMEOUT}s") from exc
+    except OSError as exc:
+        raise RuntimeError(f"could not run ffprobe: {exc}") from exc
+
+    if result.returncode != 0:
+        detail = (result.stderr or "unknown ffprobe error").strip()
+        raise RuntimeError(detail[-600:])
+    try:
+        return json.loads(result.stdout).get("streams", [])
+    except (json.JSONDecodeError, AttributeError) as exc:
+        raise RuntimeError(f"invalid ffprobe JSON: {exc}") from exc
+
+
+def error_row(path, size="", mtime_ns="", message=""):
+    return {
+        "Filename": os.path.basename(path),
+        "Location": os.path.dirname(path),
+        "File_Size": size,
+        "File_Mtime_NS": mtime_ns,
+        "Inspection_Status": "ERROR",
+        "Stream_Index": "",
+        "Stream_Type": "ERROR",
+        "Language": "",
+        "Codec": "",
+        "Title": message,
+        "Disposition_Default": "",
+    }
+
 
 def scan():
     if shutil.which("ffprobe") is None:
-        print("ERROR: ffprobe not found (install ffmpeg)")
-        return
+        print("ERROR: ffprobe not found. Install FFmpeg first.", file=sys.stderr)
+        return 1
+    if not os.path.isdir(ROOT_DIRECTORY):
+        print(f"ERROR: media root does not exist or is not a directory: {ROOT_DIRECTORY}", file=sys.stderr)
+        return 1
 
-    now = datetime.utcnow().isoformat() + "Z"
+    generated_at = datetime.now(timezone.utc).isoformat()
+    scanned = flagged = failed = 0
+    rows = []
+    traversal_errors = []
 
-    with open(CSV_PATH, "w", newline="", encoding="utf-8") as f:
-        # ---- CSV HEADER STATE ----
-        f.write("# MEDIA_AUDIT_STATE=UNPROCESSED\n")
-        f.write(f"# GENERATED_AT={now}\n")
-        f.write("# GENERATED_BY=scan_media.py\n")
+    def on_walk_error(exc):
+        traversal_errors.append(str(exc))
 
-        fieldnames = [
-            "Filename",
-            "Location",
-            "Stream_Index",
-            "Stream_Type",
-            "Language",
-            "Codec",
-            "Title",
-            "Disposition_Default"
-        ]
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
+    for root, _, filenames in os.walk(ROOT_DIRECTORY, onerror=on_walk_error):
+        for name in filenames:
+            if not name.lower().endswith(VIDEO_EXTENSIONS):
+                continue
 
-        scanned = 0
-        flagged = 0
-
-        for root, _, files in os.walk(ROOT_DIRECTORY):
-            for name in files:
-                if not name.lower().endswith(VIDEO_EXTENSIONS):
-                    continue
-
-                scanned += 1
-                full_path = os.path.join(root, name)
+            scanned += 1
+            full_path = os.path.join(root, name)
+            try:
+                before = os.stat(full_path, follow_symlinks=True)
                 streams = ffprobe_streams(full_path)
+                after = os.stat(full_path, follow_symlinks=True)
+                if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                    raise RuntimeError("file changed while it was being scanned")
+            except (OSError, RuntimeError) as exc:
+                failed += 1
+                rows.append(error_row(full_path, message=str(exc)))
+                print(f"ERROR: {full_path}: {exc}", file=sys.stderr)
+                continue
 
-                audio = [s for s in streams if s.get("codec_type") == "audio"]
-                subs  = [s for s in streams if s.get("codec_type") == "subtitle"]
+            audio = [s for s in streams if s.get("codec_type") == "audio"]
+            subtitles = [s for s in streams if s.get("codec_type") == "subtitle"]
 
-                if not audio:
-                    continue
+            if not audio:
+                continue
 
-                langs = [s.get("tags", {}).get("language", "und").lower() for s in audio]
+            languages = [
+                str(s.get("tags", {}).get("language", "und")).strip().lower()
+                for s in audio
+            ]
+            # Keep the original policy: one English audio track is already clean.
+            if len(audio) == 1 and languages[0] in ("eng", "en", "english"):
+                continue
 
-                # ---- SKIP CLEAN FILES ----
-                if len(audio) == 1 and langs[0] == "eng":
-                    continue
+            flagged += 1
+            for stream in audio + subtitles:
+                rows.append({
+                    "Filename": name,
+                    "Location": root,
+                    "File_Size": after.st_size,
+                    "File_Mtime_NS": after.st_mtime_ns,
+                    "Inspection_Status": "OK",
+                    "Stream_Index": stream.get("index", ""),
+                    "Stream_Type": stream.get("codec_type", ""),
+                    "Language": str(stream.get("tags", {}).get("language", "und")).upper(),
+                    "Codec": stream.get("codec_name", "unknown"),
+                    "Title": stream.get("tags", {}).get("title", ""),
+                    "Disposition_Default": stream.get("disposition", {}).get("default", 0),
+                })
 
-                flagged += 1
+            if scanned % 50 == 0:
+                print(f"Scanned: {scanned} | Flagged: {flagged} | Inspection errors: {failed}", end="\r")
 
-                for s in audio + subs:
-                    writer.writerow({
-                        "Filename": name,
-                        "Location": root,
-                        "Stream_Index": s.get("index"),
-                        "Stream_Type": s.get("codec_type"),
-                        "Language": s.get("tags", {}).get("language", "und").upper(),
-                        "Codec": s.get("codec_name", "unknown"),
-                        "Title": s.get("tags", {}).get("title", ""),
-                        "Disposition_Default": s.get("disposition", {}).get("default", 0)
-                    })
+    if traversal_errors:
+        failed += len(traversal_errors)
+        for message in traversal_errors:
+            print(f"ERROR: directory traversal: {message}", file=sys.stderr)
 
-                if scanned % 50 == 0:
-                    print(f" Scanned: {scanned} | Flagged: {flagged}", end="\r")
+    # Write a complete new audit beside the old one, then atomically publish it.
+    fd, temporary_path = tempfile.mkstemp(
+        prefix=".media_audit.", suffix=".csv", dir=SCRIPT_DIR, text=True
+    )
+    try:
+        with os.fdopen(fd, "w", newline="", encoding="utf-8") as handle:
+            handle.write("# MEDIA_AUDIT_VERSION=2\n")
+            handle.write("# MEDIA_AUDIT_STATE=UNPROCESSED\n")
+            handle.write(f"# GENERATED_AT={generated_at}\n")
+            handle.write("# GENERATED_BY=scan_media.py\n")
+            writer = csv.DictWriter(handle, fieldnames=FIELDNAMES)
+            writer.writeheader()
+            writer.writerows(rows)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, CSV_PATH)
+    except Exception:
+        try:
+            os.unlink(temporary_path)
+        except OSError:
+            pass
+        raise
 
-    print(f"\nScan complete.")
-    print(f"Files flagged: {flagged}")
-    print(f"CSV written to: {CSV_PATH}")
+    print("\nScan complete.")
+    print(f"Media files inspected: {scanned}")
+    print(f"Files flagged for remux review: {flagged}")
+    print(f"Inspection/traversal errors: {failed}")
+    print(f"Audit written to: {CSV_PATH}")
+    if failed:
+        print("WARNING: resolve inspection errors before running the remux cleaner.")
+        return 1
+    return 0
+
 
 if __name__ == "__main__":
-    scan()
+    raise SystemExit(scan())

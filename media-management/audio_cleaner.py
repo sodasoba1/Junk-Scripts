@@ -251,7 +251,9 @@ def remux_one(path, rows, work_dir, apply_changes):
         raise RuntimeError((result.stderr or f"FFmpeg exited {result.returncode}").strip()[-1000:])
 
     validate_output(temp_output, expected_counts)
-    source_video_hash = video_packet_hash(temp_input)
+    # Hash the actual network source, not only its local staging copy. This
+    # detects a damaged/incomplete source copy as well as any altered remux.
+    source_video_hash = video_packet_hash(path)
     remuxed_video_hash = video_packet_hash(temp_output)
     if source_video_hash != remuxed_video_hash:
         raise RuntimeError(
@@ -313,7 +315,7 @@ def remux_one(path, rows, work_dir, apply_changes):
         except OSError:
             pass
         raise
-    return original_size, remuxed_size
+    return original_size, remuxed_size, source_video_hash
 
 
 def write_report(lines):
@@ -422,7 +424,7 @@ def main():
             failed += 1
             if "no space reclaimed" in str(exc):
                 no_saving += 1
-            file_results.append((path, "FAILED", "", "", 0))
+            file_results.append((path, "FAILED", "", "", 0, ""))
             failures.append(f"{path}: {exc}")
             print(f"  FAILED: {exc}")
         finally:

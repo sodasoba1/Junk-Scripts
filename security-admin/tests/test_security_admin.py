@@ -18,7 +18,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual((e["ip"],e["method"]),("2001:db8::1","publickey"))
     def test_invalid_user(self):
         e=mod.parse_event("Nov 25 10:00:00 host sshd[1]: Invalid user guest from 198.51.100.2",self.now)
-        self.assertEqual(e["outcome"],"failed")
+        self.assertEqual(e["outcome"],"invalid_user")
     def test_ip_like_username_does_not_override_source(self):
         e=mod.parse_event("Nov 25 10:00:00 host sshd[1]: Failed password for 192.0.2.99 from 203.0.113.7 port 22 ssh2",self.now)
         self.assertEqual(e["ip"],"203.0.113.7")
@@ -31,5 +31,17 @@ class ParserTests(unittest.TestCase):
     def test_iso_timestamp(self):
         value=mod.parse_time("2026-11-25T10:00:00+00:00 host sshd: Accepted password",self.now)
         self.assertEqual(value.hour,10)
+    def test_duplicate_pam_and_sshd_event_suppressed(self):
+        base={"ip":"203.0.113.8","user":"alice","outcome":"failed","method":"password"}
+        a={**base,"time":"2026-11-25T10:00:00+00:00"}
+        b={**base,"time":"2026-11-25T10:00:02+00:00","method":"PAM"}
+        result,count=mod.deduplicate_events([a,b])
+        self.assertEqual((len(result),count),(1,1))
+    def test_separate_attempts_are_retained(self):
+        base={"ip":"203.0.113.8","user":"alice","outcome":"failed","method":"password"}
+        a={**base,"time":"2026-11-25T10:00:00+00:00"}
+        b={**base,"time":"2026-11-25T10:00:05+00:00"}
+        result,count=mod.deduplicate_events([a,b])
+        self.assertEqual((len(result),count),(2,0))
 
 if __name__=="__main__": unittest.main()

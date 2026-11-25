@@ -84,12 +84,14 @@ def read_sources(now, hours):
         try:
             p=subprocess.run([journalctl,"--since",since,"--output=short-iso-precise","--no-pager"],
                              text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=90)
-            if p.returncode==0 and any(re.search(r"sshd|authentication failure", line, re.I) for line in p.stdout.splitlines()):
-                return p.stdout.splitlines(), f"systemd journal ({hours:g}-hour window)", []
+            if p.returncode==0:
+                if any(re.search(r"Failed |Accepted |Invalid user |authentication failure", line, re.I) for line in p.stdout.splitlines()):
+                    return p.stdout.splitlines(), f"systemd journal ({hours:g}-hour window)", []
+                journal_error="journal contains no matching SSH/PAM authentication records"
+            else:
+                journal_error=p.stderr.strip() or f"journalctl exit status {p.returncode}"
         except (OSError,subprocess.SubprocessError) as exc:
             journal_error=str(exc)
-        else:
-            journal_error=p.stderr.strip() or f"journalctl exit status {p.returncode}"
     else:
         journal_error="journalctl is not installed"
     paths=[]
@@ -145,6 +147,7 @@ def main():
             burst=[t for t in failures if end-dt.timedelta(minutes=10)<t<=end]
             if len(burst)>=8:
                 alerts.append({"type":"failure_burst","ip":ip,"user":user,"count":len(burst),"window":"10 minutes",
+                               "first_seen":min(burst).isoformat(),"last_seen":max(burst).isoformat(),
                                "detail":"At least 8 failed SSH/PAM authentication events in a rolling 10-minute window."})
                 break
         if successes:
@@ -152,6 +155,7 @@ def main():
                 prior=[t for t in failures if success-dt.timedelta(minutes=30)<=t<success]
                 if len(prior)>=5:
                     alerts.append({"type":"failures_then_success","ip":ip,"user":user,"failures":len(prior),"window":"30 minutes",
+                                   "first_failure":min(prior).isoformat(),"successful_at":success.isoformat(),
                                    "detail":"At least 5 failures for the same source IP and username preceded a successful authentication."})
                     break
     if args.json:
@@ -175,7 +179,9 @@ def main():
         print(f"{ip:>39}  failed={failed:<5} successful={accepted:<5} invalid-user={invalid:<5} users={','.join(sorted({e['user'] for e in items}))}")
     print("\nALERTS")
     if not alerts: print("No configured failure patterns detected. This is not proof that the host is uncompromised.")
-    for a in alerts: print(f"- {a['type']}: {a['ip']} user={a['user']} ({a.get('count',a.get('failures'))} events; {a['window']}). {a['detail']}")
+    for a in alerts:
+        period=f"{a.get('first_seen',a.get('first_failure'))} to {a.get('last_seen',a.get('successful_at'))}"
+        print(f"- {a['type']}: {a['ip']} user={a['user']} ({a.get('count',a.get('failures'))} events; {a['window']}; {period}). {a['detail']}")
     print("\nRECENT AUTHENTICATION EVIDENCE (up to 30 events)")
     for e in events[-30:]:
         print(f"{e['time']} {e['outcome'].upper():8} {e['ip']:>39} user={e['user']} method={e['method']}")

@@ -20,7 +20,7 @@ if mountpoint -q "$MOUNT_POINT"; then
     exit 0
 fi
 
-mkdir -p "$MOUNT_POINT"
+sudo install -d -m 0775 "$MOUNT_POINT"
 
 read -r -p 'SMB username: ' SMB_USERNAME
 [[ -n "$SMB_USERNAME" ]] || fail 'No username was entered.'

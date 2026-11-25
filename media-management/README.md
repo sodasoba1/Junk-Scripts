@@ -27,17 +27,17 @@ Run from this directory.
 **Windows PowerShell — mapped drive:**
 
 ```powershell
-$env:MEDIA_ROOT = 'Z:\\Media'
-$env:MEDIA_BUFFER = 'D:\\RemuxBuffer'
-py .\\media_manager.py
+$env:MEDIA_ROOT = 'Z:\Media'
+$env:MEDIA_BUFFER = 'D:\RemuxBuffer'
+py .\media_manager.py
 ```
 
 **Windows PowerShell — UNC path:**
 
 ```powershell
-$env:MEDIA_ROOT = '\\\\SERVER\\Media'
-$env:MEDIA_BUFFER = 'D:\\RemuxBuffer'
-py .\\media_manager.py
+$env:MEDIA_ROOT = '\\SERVER\Media'
+$env:MEDIA_BUFFER = 'D:\RemuxBuffer'
+py .\media_manager.py
 ```
 
 **Linux:**
@@ -111,10 +111,10 @@ MEDIA_ROOT=/path/to/media ./media.sh
 
 ## Configuration
 
-- Set `MEDIA_ROOT` to the intended library root. On Windows, this is mandatory and may be a mapped drive (for example `Z:\\Media`) or UNC path (for example `\\\\SERVER\\Media`). On Linux, it defaults to `/media`.
+- Set `MEDIA_ROOT` to the intended library root. On Windows, this is mandatory and may be a mapped drive (for example `Z:\Media`) or UNC path (for example `\\SERVER\Media`). On Linux, it defaults to `/media`.
 - Set `MEDIA_BUFFER` to the local SSD staging directory. It defaults to `~/remux_buffer`.
 - Set `FFPROBE_TIMEOUT` in the Python scripts to change the per-file FFprobe timeout.
 
 ## Limitations
 
-Output validation confirms FFprobe can read the output and that expected stream counts match; it is not a full decode or playback test. After replacement, the script checks the final share-side file size and probes it again before counting reclaimed space. File fingerprints use size and modification time rather than cryptographic hashes. Windows/SMB replacement can fail when another process has the file open or the share denies delete/rename access; in that case the original is left in place. On SMB, the replacement may inherit the containing directory/share ACL rather than preserving an explicit per-file ACL. Test this against a representative folder before running across the full library. Non-MKV container-specific stream types other than video/audio/subtitle are not explicitly mapped. The workflow is manually launchable; no recurring scheduler is installed by these scripts.
+Output validation confirms FFprobe can read the output and that expected stream counts match; it is not a full decode or playback test. The completed temporary copy on the share is probed before replacement; after the same-directory replacement, the final path and file size are checked before counting reclaimed space. File fingerprints use size and modification time rather than cryptographic hashes. Windows/SMB replacement can fail when another process has the file open or the share denies delete/rename access; in that case the original is left in place. On SMB, the replacement may inherit the containing directory/share ACL rather than preserving an explicit per-file ACL. Test this against a representative folder before running across the full library. Non-MKV container-specific stream types other than video/audio/subtitle are not explicitly mapped. The workflow is manually launchable; no recurring scheduler is installed by these scripts.
